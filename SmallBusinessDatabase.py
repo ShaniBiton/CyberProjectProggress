@@ -9,28 +9,28 @@ curr = conn.cursor()
 
 # Creating a table for accounts (including sensitive information)
 curr.execute("CREATE TABLE IF NOT EXISTS accounts(id text PRIMARY KEY, username text, password text, full_name txt, "
-             "address text, security_level int)")
+             "security_level int)")
 # Security levels: 1 - admin, 2 - user
 
 # Inserting random information with weak passwords and basic details
 curr.execute("INSERT INTO accounts VALUES('938476529','david_<3', 'david123', 'David Smith',  "
-             "'Orange St. 7', '2');")
+             "'2');")
 curr.execute("INSERT INTO accounts VALUES('123456789', 'johnny1', '12345', 'Johnny Taylor',  "
-             "'Main St. 5', '2');")
+             "'2');")
 curr.execute("INSERT INTO accounts VALUES('987654321', 'amyrocks', 'password', 'Amy Johnson', "
-             "'Pine Ave. 42', '2');")
+             "'2');")
 curr.execute("INSERT INTO accounts VALUES('543216789', 'mark_boi', 'qwerty', 'Mark Brown',  "
-             "'Lake View Rd. 12', '2');")
+             "'2');")
 curr.execute("INSERT INTO accounts VALUES('192837465', 'sarah_cute', 'letmein', 'Sarah Green',  "
-             "'Elm St. 9', '2');")
+             "'2');")
 curr.execute("INSERT INTO accounts VALUES('765432198','emma*cool', 'abc123', 'Emma White',  "
-             "'Willow Blvd. 23', '2');")
+             "'2');")
 
 # Adding admin users with a higher security level
 curr.execute("INSERT INTO accounts VALUES('176435897', 'admin', 'admin', 'Robert Richerman',  "
-             "'Hollywood St. 23', '1');")
+             "'1');")
 curr.execute("INSERT INTO accounts VALUES('928475648', 'root', 'welcome', 'Lily Mickelson ',  "
-             "'Hollywood St. 25', '1');")
+             "'1');")
 
 curr.execute("SELECT * FROM accounts")
 rows = curr.fetchall()
@@ -80,30 +80,59 @@ print("Tables and trigger created successfully!")
 
 
 # Inserting random information into the orders table
-curr.execute("INSERT INTO orders VALUES(1, 'John Doe', '123 Elm St, Springfield', 'Pizza Order', 'FAILED');")
-curr.execute("INSERT INTO orders VALUES(2, 'Jane Smith', '456 Oak St, Springfield', 'Pasta Order', 'SUCCESSFUL');")
-curr.execute("INSERT INTO orders VALUES(3, 'Jim Brown', '789 Pine St, Springfield', 'Salad Order', 'FAILED');")
-curr.execute("INSERT INTO orders VALUES(4, 'Alice Green', '101 Maple St, Springfield', 'Burger Order',"
-             " 'SUCCESSFUL');")
-curr.execute("INSERT INTO orders VALUES(5, 'Bob White', '202 Birch St, Springfield', 'Steak Order', 'FAILED');")
-curr.execute("INSERT INTO orders VALUES(6, 'Eve Black', '303 Cedar St, Springfield', 'Fish Order', 'SUCCESSFUL');")
-curr.execute("INSERT INTO orders VALUES(7, 'Charlie Blue', '404 Cherry St, Springfield', 'Chicken Order', 'FAILED');")
-curr.execute("INSERT INTO orders VALUES(8, 'David Red', '505 Walnut St, Springfield', 'Tacos Order', 'SUCCESSFUL');")
-curr.execute("INSERT INTO orders VALUES(9, 'Grace Yellow', '606 Willow St, Springfield', 'Soup Order', 'FAILED');")
-curr.execute("INSERT INTO orders VALUES(10, 'Hank Purple', '707 Maple St, Springfield', 'Pizza Order', "
-             "'SUCCESSFUL');")
+order_ids = []
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('John Doe', '123 Elm St, Springfield', 'Pizza Order', 'FAILED'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Jane Smith', '456 Oak St, Springfield', 'Pasta Order', 'SUCCESSFUL'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Jim Brown', '789 Pine St, Springfield', 'Salad Order', 'FAILED'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Alice Green', '101 Maple St, Springfield', 'Burger Order', 'SUCCESSFUL'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Bob White', '202 Birch St, Springfield', 'Steak Order', 'FAILED'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Eve Black', '303 Cedar St, Springfield', 'Fish Order', 'SUCCESSFUL'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Charlie Blue', '404 Cherry St, Springfield', 'Chicken Order', 'FAILED'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('David Red', '505 Walnut St, Springfield', 'Tacos Order', 'SUCCESSFUL'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Grace Yellow', '606 Willow St, Springfield', 'Soup Order', 'FAILED'))
+order_ids.append(curr.lastrowid)
+curr.execute("INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES (?, ?, ?, ?);",
+             ('Hank Purple', '707 Maple St, Springfield', 'Pizza Order', 'SUCCESSFUL'))
+order_ids.append(curr.lastrowid)
 
 # Inserting random information into the payments table
-curr.execute("INSERT INTO payments VALUES(1, 1, '4111111111111111', '12/25', '123', 20.0, 'FAILED');")
-curr.execute("INSERT INTO payments VALUES(2, 2, '4222222222222222', '11/24', '456', 15.0, 'SUCCESSFUL');")
-curr.execute("INSERT INTO payments VALUES(3, 3, '4333333333333333', '10/23', '789', 12.0, 'FAILED');")
-curr.execute("INSERT INTO payments VALUES(4, 4, '4444444444444444', '09/22', '012', 18.0, 'SUCCESSFUL');")
-curr.execute("INSERT INTO payments VALUES(5, 5, '4555555555555555', '08/21', '345', 25.0, 'FAILED');")
-curr.execute("INSERT INTO payments VALUES(6, 6, '4666666666666666', '07/20', '678', 22.0, 'SUCCESSFUL');")
-curr.execute("INSERT INTO payments VALUES(7, 7, '4777777777777777', '06/19', '901', 19.0, 'FAILED');")
-curr.execute("INSERT INTO payments VALUES(8, 8, '4888888888888888', '05/18', '234', 16.0, 'SUCCESSFUL');")
-curr.execute("INSERT INTO payments VALUES(9, 9, '4999999999999999', '04/17', '567', 14.0, 'FAILED');")
-curr.execute("INSERT INTO payments VALUES(10, 10, '5000000000000000', '03/16', '890', 21.0, 'SUCCESSFUL');")
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[0], '4111111111111111', '12/25', '123', 20.0, 'FAILED'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES(?,?,?,?,?,?);",
+             (order_ids[1], '4222222222222222', '11/24', '456', 15.0, 'SUCCESSFUL'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[2], '4333333333333333', '10/23', '789', 12.0, 'FAILED'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[3], '4444444444444444', '09/22', '012', 18.0, 'SUCCESSFUL'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[4], '4555555555555555', '08/21', '345', 25.0, 'FAILED'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[5], '4666666666666666', '07/20', '678', 22.0, 'SUCCESSFUL'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[6], '4777777777777777', '06/19', '901', 19.0, 'FAILED'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[7], '4888888888888888', '05/18', '234', 16.0, 'SUCCESSFUL'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[8], '4999999999999999', '04/17', '567', 14.0, 'FAILED'))
+curr.execute("INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES (?,?,?,?,?,?);",
+             (order_ids[9], '5000000000000000', '03/16', '890', 21.0, 'SUCCESSFUL'))
 
 
 # Verify the insertions (optional)
