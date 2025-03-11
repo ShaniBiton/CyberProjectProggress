@@ -161,6 +161,80 @@ def log_interaction(source_ip, payload, resource_accessed, query):
     write_log("interaction_logs.json", entry)
 
 
+def client_view_client_profile(client_socket, client_username, addr):
+    try:
+        # Connecting to the database
+        conn = sqlite3.connect("Small Business")
+
+        # Creating a cursor
+        curr = conn.cursor()
+
+        # Client ID
+        client_id_curr = curr.execute(f"SELECT id FROM accounts WHERE username = '{client_username}'")
+        client_id = curr.fetchone()
+
+        #  Logging interaction with the database
+        log_interaction(addr[0], client_username, "accounts", f"SELECT id FROM accounts WHERE"
+                                                              f" username = '{client_username}'")
+        send_message(client_socket, client_id[0])
+        # Client username
+        send_message(client_socket, client_username)
+        # Client password
+        client_password_curr = curr.execute(f"SELECT password FROM accounts WHERE username = '{client_username}'")
+        client_password = curr.fetchone()
+
+        #  Logging interaction with the database
+        log_interaction(addr[0], client_username, "accounts", f"SELECT password FROM accounts WHERE"
+                                                              f" username = '{client_username}'")
+        send_message(client_socket, client_password[0])
+        # Client full name
+        client_full_name_curr = curr.execute(f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
+        client_full_name = curr.fetchone()
+
+        #  Logging interaction with the database
+        log_interaction(addr[0], client_username, "accounts", f"SELECT full_name FROM accounts"
+                                                              f" WHERE username = '{client_username}'")
+        send_message(client_socket, client_full_name[0])
+        handle_client(client_socket, client_username, addr)
+    except (ValueError, socket.error) as e:
+        client_socket.close()
+        print(f"Exception: {e}")
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        # Information leakage - revealing which part of a login attempt failed
+        send_message(client_socket, f"Database error: {e}")
+    except socket.error as e:
+        print("socket error", e)
+        client_socket.close()
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+    except Exception as e:
+        print(e)
+        client_socket.close()
+    finally:
+        # Committing changes
+        conn.commit()
+
+        # Close cursor
+        curr.close()
+
+        # Close connection
+        conn.close()
+
+
+def client_view_menu(client_socket, client_username, addr):
+    try:
+        print("Sending pictures of meals to the client")
+        handle_client(client_socket, client_username, addr)
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        log_error(e, "Unexpected Error", "NO QUERY", addr[0])
+        return
+
+
 def client_place_order(client_socket, client_username, addr):
     try:
         # To note which query was executed in case of an error (for more accurate logging)
@@ -366,7 +440,7 @@ def handle_client(client_socket, client_username, addr):
 
         # Logging the error
         log_error(e, "sqlite3.Error", f"SELECT security_level FROM accounts WHERE username ="
-                                       f" '{client_username}'", addr[0])
+                                      f" '{client_username}'", addr[0])
         return None
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
@@ -377,6 +451,13 @@ def handle_client(client_socket, client_username, addr):
 
         # Logging the error
         log_error(e, "ValueError", "NO QUERY", addr[0])
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        # Logging Error
+        log_error(e, "Unexpected Error", f"SELECT security_level FROM accounts WHERE username ="
+                                         f" '{client_username}'", addr[0])
+        return
     finally:
         # Committing changes
         conn.commit()
@@ -475,6 +556,10 @@ def login(client_socket, addr):
 
         # Logging the error
         log_error(e, "ValueError", "NO QUERY", addr[0])
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        return
     finally:
         # Close cursor
         curr.close()
@@ -557,6 +642,10 @@ def sign_up(client_socket, addr):
 
         # Logging the error
         log_error(e, "ValueError", "NO QUERY", addr[0])
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        return
     finally:
         # Committing changes
         conn.commit()
