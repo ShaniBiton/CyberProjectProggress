@@ -45,7 +45,7 @@ def receive_message(client_socket, addr):
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
     except Exception as e:
-        print(e)
+        print(f"Unexpected Error: {e}")
         client_socket.close()
         # Logging the error
         log_error(e, "Unexpected Error", "NO QUERY", addr[0])
@@ -161,6 +161,233 @@ def log_interaction(source_ip, payload, resource_accessed, query):
     write_log("interaction_logs.json", entry)
 
 
+def client_place_order(client_socket, client_username, addr):
+    try:
+        # To note which query was executed in case of an error (for more accurate logging)
+        database_updates = [0, 0, 0, 0, 0, 0]
+
+        # Connecting to the database
+        conn = sqlite3.connect("Small Business")
+
+        # Creating a cursor
+        curr = conn.cursor()
+
+        # Receive order from client
+        # Order details
+        order_details = receive_message(client_socket)
+
+        # Name
+        order_client_name = receive_message(client_socket)
+
+        # Address
+        order_address = receive_message(client_socket)
+
+        # Payment Information
+        # Card number
+        payment_card = receive_message(client_socket)
+
+        # Expiry date
+        payment_card_exdate = receive_message(client_socket)
+
+        # CVV
+        payment_card_cvv = receive_message(client_socket)
+
+        # Amount
+        payment_amount = receive_message(client_socket)
+
+        # Randomize SUCCESSFUL or FAILED payment
+        payment_status_random = random.randint(0, 2)
+        quarry = ""
+        if payment_status_random == 0:
+            # Insert data into the orders and payments tables in the database
+            # Execute a parameterized query to fetch the password
+            # No input validation, vulnerable to SQL Injection
+            curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
+                         f"{order_client_name}, {order_address}, {order_details}, 'FAILED');")
+
+            database_updates[0] = 1
+
+            #  Logging interaction with the database
+            log_interaction(addr[0], (order_client_name, order_address, order_details),
+                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                            f" VALUES ({order_client_name}, {order_address}, {order_details}, 'FAILED');")
+
+            order_id = curr.lastrowid
+            curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES "
+                         f"({order_id},{payment_card},{payment_card_exdate},{payment_card_cvv},{payment_amount},"
+                         f"'FAILED');")
+
+            database_updates[1] = 1
+
+            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
+                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                            f" VALUES ({order_client_name}, {order_address}, {order_details}, 'FAILED');")
+
+            send_message(client_socket, "payment failed")
+        else:
+            # Insert data into the orders and payments tables in the database
+            # Execute a parameterized query to fetch the password
+            # No input validation, vulnerable to SQL Injection
+            curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
+                         f"{order_client_name}, {order_address}, {order_details}, 'SUCCESSFUL');")
+
+            database_updates[2] = 1
+
+            order_id = curr.lastrowid
+            curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES ("
+                         f"{order_id},{payment_card},{payment_card_exdate},{payment_card_cvv},{payment_amount},"
+                         f"'SUCCESSFUL');")
+
+            database_updates[3] = 1
+
+            send_message(client_socket, "Order placed! Payment complete!")
+
+        # Print the orders table
+        curr.execute("SELECT * FROM orders")
+        database_updates[4] = 1
+        orders = curr.fetchall()
+        for order in orders:
+            print(order)
+
+        # Print the payments table
+        curr.execute("SELECT * FROM payments")
+        database_updates[5] = 1
+        payments = curr.fetchall()
+        for payment in payments:
+            print(payment)
+
+        handle_client(client_socket,client_username)
+    except socket.error as e:
+        print(f"Socket Error: {e}")
+        client_socket.close()
+        # Logging the error
+        log_error(e, "socket.error", "NO QUERY", addr[0])
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+
+        # Logging the error
+        if database_updates == [1, 0, 0, 0, 0, 0]:
+            log_error(e, "sqlite3.Error", f"INSERT INTO orders (customer_name, address, order_details,"
+                                          f" payment_status) VALUES ({order_client_name}, {order_address},"
+                                          f" {order_details}, 'FAILED');", addr[0])
+        elif database_updates == [1, 1, 0, 0, 0, 0]:
+            log_error(e, "sqlite3.Error", f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                          f" cvv, amount, status) VALUES ({order_id},{payment_card},"
+                                          f"{payment_card_exdate},{payment_card_cvv},{payment_amount},"
+                                          f"'FAILED');", addr[0])
+        elif database_updates == [0, 0, 1, 0, 0, 0]:
+            log_error(e, "sqlite3.Error", f"INSERT INTO orders (customer_name, address, order_details,"
+                                          f" payment_status) VALUES ({order_client_name}, {order_address},"
+                                          f" {order_details}, 'SUCCESSFUL');", addr[0])
+        elif database_updates == [0, 0, 1, 1, 0, 0]:
+            log_error(e, "sqlite3.Error", f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                          f" cvv, amount, status) VALUES ({order_id},{payment_card},"
+                                          f"{payment_card_exdate},{payment_card_cvv},{payment_amount},"
+                                          f"'SUCCESSFUL');", addr[0])
+        elif database_updates[4] == 1:
+            log_error(e, "sqlite3.Error", "SELECT * FROM orders", addr[0])
+        elif database_updates[5] == 1:
+            log_error(e, "sqlite3.Error", "SELECT * FROM payments", addr[0])
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except ValueError as e:
+        client_socket.close()
+        print(f"Exception: {e}")
+
+        # Logging the error
+        log_error(e, "ValueError", "NO QUERY", addr[0])
+    finally:
+        # Committing changes
+        conn.commit()
+
+        # Close cursor
+        curr.close()
+
+        # Close connection
+        conn.close()
+
+
+def handle_client(client_socket, client_username, addr):
+    try:
+        # Connecting to the database
+        conn = sqlite3.connect("Small Business")
+
+        # Creating a cursor
+        curr = conn.cursor()
+
+        client_sec_level_curr = curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+        client_sec_level = curr.fetchone()
+        if client_sec_level:
+            print(client_sec_level[0])
+
+            # Send Client's Security level
+            send_message(client_socket, f"Security Level - {client_sec_level[0]}")
+
+            # User logged in, can execute several actions, now chose one:
+            user_action = receive_message(client_socket)
+            if user_action == "order":
+                print("order")
+                client_place_order(client_socket, client_username, addr)
+            elif user_action == "menu":
+                print("menu")
+                client_view_menu(client_socket, client_username)
+            elif user_action == "profile":
+                print("profile")
+                client_view_client_profile(client_socket, client_username, addr)
+            elif user_action == "view accounts":
+                print("view accounts")
+                send_message(client_socket, "The accounts table")
+                handle_client(client_socket, client_username, addr)
+            elif user_action == "view orders":
+                print("view orders")
+                send_message(client_socket, "The orders table")
+                handle_client(client_socket, client_username, addr)
+            elif user_action == "view payments":
+                print("view payments")
+                send_message(client_socket, "The payments table")
+                handle_client(client_socket, client_username, addr)
+            elif user_action == "exit":
+                pass    # Add end timer, network log
+    except socket.error as e:
+        print(f"Socket Error: {e}")
+        client_socket.close()
+        # Logging the error
+        log_error(e, "socket.error", "NO QUERY", addr[0])
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+
+        # Logging the error
+        log_error(e, "sqlite3.Error", f"SELECT security_level FROM accounts WHERE username ="
+                                       f" '{client_username}'", addr[0])
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except ValueError as e:
+        client_socket.close()
+        print(f"Exception: {e}")
+
+        # Logging the error
+        log_error(e, "ValueError", "NO QUERY", addr[0])
+    finally:
+        # Committing changes
+        conn.commit()
+
+        # Close cursor
+        curr.close()
+
+        # Close connection
+        conn.close()
+
+
 def login(client_socket, addr):
     try:
         # Receiving the client's username
@@ -226,7 +453,7 @@ def login(client_socket, addr):
         else:
             return None
     except socket.error as e:
-        print(e)
+        print(f"Socket Error: {e}")
         client_socket.close()
         # Logging the error
         log_error(e, "socket.error", "NO QUERY", addr[0])
@@ -237,8 +464,8 @@ def login(client_socket, addr):
         # send_message(client_socket, f"Database error: {e}")
 
         # Logging the error
-        log_error(e, "sqlite3.Error", (f"SELECT password FROM accounts WHERE username ="
-                  f" '{client_username}'", addr[0]))
+        log_error(e, "sqlite3.Error", f"SELECT password FROM accounts WHERE username ="
+                  f" '{client_username}'", addr[0])
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
         return None
@@ -258,6 +485,9 @@ def login(client_socket, addr):
 
 def sign_up(client_socket, addr):
     try:
+        # To note which query was executed in case of an error (for more accurate logging)
+        database_updates = 0
+
         # Connecting to the database
         conn = sqlite3.connect("Small Business")
 
@@ -282,6 +512,7 @@ def sign_up(client_socket, addr):
         query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_full_name}', '{new_user_username}',"
                  f" '{new_user_full_name}', 2);")
         curr.execute(query)
+        database_updates += 1
 
         # Committing changes
         conn.commit()
@@ -290,6 +521,7 @@ def sign_up(client_socket, addr):
 
         # Print updated database
         curr.execute("SELECT * FROM accounts")
+        database_updates += 1
         rows = curr.fetchall()
 
         # Printing all rows
@@ -298,7 +530,7 @@ def sign_up(client_socket, addr):
 
         return new_user_username
     except socket.error as e:
-        print(e)
+        print(f"Socket Error: {e}")
         client_socket.close()
         # Logging the error
         log_error(e, "socket.error", "NO QUERY", addr[0])
@@ -309,9 +541,12 @@ def sign_up(client_socket, addr):
         # send_message(client_socket, f"Database error: {e}")
 
         # Logging the error
-        log_error(e, "sqlite3.Error", (f"INSERT INTO accounts VALUES('{new_user_id}', "
-                                       f"'{new_user_full_name}', '{new_user_username}', '{new_user_full_name}', 2);",
-                                       "SELECT * FROM accounts"), addr[0])
+        if database_updates == 1:
+            log_error(e, "sqlite3.Error", f"INSERT INTO accounts VALUES('{new_user_id}', "
+                                          f"'{new_user_full_name}', '{new_user_username}', '{new_user_full_name}'"
+                                          f", 2);", addr[0])
+        if database_updates == 2:
+            log_error(e, "sqlite3.Error", "SELECT * FROM accounts", addr[0])
         return None
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
@@ -325,7 +560,7 @@ def sign_up(client_socket, addr):
     finally:
         # Committing changes
         conn.commit()
-        
+
         # Close cursor
         curr.close()
 
@@ -343,10 +578,12 @@ def client_entrance(client_socket, addr):
 
         if login_or_signup == "login":
             client_username = login(client_socket, addr)
-        if login_or_signup == "sign up":
+        elif login_or_signup == "sign up":
             client_username = sign_up(client_socket, addr)
         if client_username:
             handle_client(client_socket, client_username, addr)
+        else:
+            client_entrance(client_socket, addr)
 
     except (ValueError, socket.error) as e:
         client_socket.close()
@@ -354,14 +591,14 @@ def client_entrance(client_socket, addr):
         # Information leakage - revealing which part of a login attempt failed
         send_message(client_socket, f"Database error: {e}")
     except socket.error as e:
-        print(e)
+        print(f"Socket Error: {e}")
         client_socket.close()
         return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
         client_socket.close()
     except Exception as e:
-        print(e)
+        print(f"Unexpected Error: {e}")
         client_socket.close()
         return
 
@@ -382,7 +619,7 @@ def main():
             client_thread = threading.Thread(target=client_entrance, args=(client_socket, addr), daemon=True)
             client_thread.start()
     except socket.error as e:
-        print(e)
+        print(f"Socket Error: {e}")
         client_socket.close()
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
