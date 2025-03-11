@@ -237,8 +237,8 @@ def login(client_socket, addr):
         # send_message(client_socket, f"Database error: {e}")
 
         # Logging the error
-        log_error(e, "sqlite3.Error", f"SELECT password FROM accounts WHERE username ="
-                  f" '{client_username}'", addr[0])
+        log_error(e, "sqlite3.Error", (f"SELECT password FROM accounts WHERE username ="
+                  f" '{client_username}'", addr[0]))
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
         return None
@@ -249,6 +249,83 @@ def login(client_socket, addr):
         # Logging the error
         log_error(e, "ValueError", "NO QUERY", addr[0])
     finally:
+        # Close cursor
+        curr.close()
+
+        # Close connection
+        conn.close()
+
+
+def sign_up(client_socket, addr):
+    try:
+        # Connecting to the database
+        conn = sqlite3.connect("Small Business")
+
+        # Creating a cursor
+        curr = conn.cursor()
+
+        # Receive new user data
+        # ID
+        new_user_id = receive_message(client_socket)
+
+        # Full name
+        new_user_full_name = receive_message(client_socket)
+
+        # Username
+        new_user_username = receive_message(client_socket)
+
+        # Password
+        new_user_password = receive_message(client_socket)
+
+        # Execute a parameterized query to fetch the password
+        # No input validation, vulnerable to SQL Injection
+        query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_full_name}', '{new_user_username}',"
+                 f" '{new_user_full_name}', 2);")
+        curr.execute(query)
+
+        # Committing changes
+        conn.commit()
+
+        print("Successful user sign up!")
+
+        # Print updated database
+        curr.execute("SELECT * FROM accounts")
+        rows = curr.fetchall()
+
+        # Printing all rows
+        for row in rows:
+            print(row)
+
+        return new_user_username
+    except socket.error as e:
+        print(e)
+        client_socket.close()
+        # Logging the error
+        log_error(e, "socket.error", "NO QUERY", addr[0])
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+
+        # Logging the error
+        log_error(e, "sqlite3.Error", (f"INSERT INTO accounts VALUES('{new_user_id}', "
+                                       f"'{new_user_full_name}', '{new_user_username}', '{new_user_full_name}', 2);",
+                                       "SELECT * FROM accounts"), addr[0])
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except ValueError as e:
+        client_socket.close()
+        print(f"Exception: {e}")
+
+        # Logging the error
+        log_error(e, "ValueError", "NO QUERY", addr[0])
+    finally:
+        # Committing changes
+        conn.commit()
+        
         # Close cursor
         curr.close()
 
