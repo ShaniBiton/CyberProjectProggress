@@ -223,6 +223,16 @@ def client_view_client_profile(client_socket, client_username, addr):
     except Exception as e:
         print(f"Unexpected Error: {e}")
         client_socket.close()
+        # Logging the error
+        if database_updates == 1:
+            log_error(e, "Unexpected Error", f"SELECT id FROM accounts WHERE username = "
+                                             f"'{client_username}'", addr[0])
+        elif database_updates == 2:
+            log_error(e, "Unexpected Error", f"SELECT password FROM accounts WHERE username = "
+                                             f"'{client_username}'", addr[0])
+        elif database_updates == 3:
+            log_error(e, "Unexpected Error", f"SELECT full_name FROM accounts WHERE username ="
+                                             f" '{client_username}'", addr[0])
         return
     finally:
         # Close cursor
@@ -385,6 +395,33 @@ def client_place_order(client_socket, client_username, addr):
 
         # Logging the error
         log_error(e, "ValueError", "NO QUERY", addr[0])
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        # Logging the error
+        if database_updates == [1, 0, 0, 0, 0, 0]:
+            log_error(e, "Unexpected Error", f"INSERT INTO orders (customer_name, address, order_details,"
+                                             f" payment_status) VALUES ({order_client_name}, {order_address},"
+                                             f" {order_details}, 'FAILED');", addr[0])
+        elif database_updates == [1, 1, 0, 0, 0, 0]:
+            log_error(e, "Unexpected Error", f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                             f" cvv, amount, status) VALUES ({order_id},{payment_card},"
+                                             f"{payment_card_exdate},{payment_card_cvv},{payment_amount},"
+                                             f"'FAILED');", addr[0])
+        elif database_updates == [0, 0, 1, 0, 0, 0]:
+            log_error(e, "Unexpected Error", f"INSERT INTO orders (customer_name, address, order_details,"
+                                             f" payment_status) VALUES ({order_client_name}, {order_address},"
+                                             f" {order_details}, 'SUCCESSFUL');", addr[0])
+        elif database_updates == [0, 0, 1, 1, 0, 0]:
+            log_error(e, "Unexpected Error", f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                             f" cvv, amount, status) VALUES ({order_id},{payment_card},"
+                                             f"{payment_card_exdate},{payment_card_cvv},{payment_amount},"
+                                             f"'SUCCESSFUL');", addr[0])
+        elif database_updates[4] == 1:
+            log_error(e, "Unexpected Error", "SELECT * FROM orders", addr[0])
+        elif database_updates[5] == 1:
+            log_error(e, "Unexpected Error", "SELECT * FROM payments", addr[0])
+        return None
+        return
     finally:
         # Committing changes
         conn.commit()
@@ -569,6 +606,9 @@ def login(client_socket, addr):
     except Exception as e:
         print(f"Unexpected Error: {e}")
         client_socket.close()
+        # Logging the error
+        log_error(e, "Unexpected Error", f"SELECT password FROM accounts WHERE username ="
+                  f" '{client_username}'", addr[0])
         return
     finally:
         # Close cursor
@@ -655,6 +695,13 @@ def sign_up(client_socket, addr):
     except Exception as e:
         print(f"Unexpected Error: {e}")
         client_socket.close()
+        # Logging the error
+        if database_updates == 1:
+            log_error(e, "Unexpected Error", f"INSERT INTO accounts VALUES('{new_user_id}', "
+                                             f"'{new_user_full_name}', '{new_user_username}', '{new_user_full_name}'"
+                                             f", 2);", addr[0])
+        elif database_updates == 2:
+            log_error(e, "Unexpected Error", "SELECT * FROM accounts", addr[0])
         return
     finally:
         # Committing changes
@@ -684,21 +731,18 @@ def client_entrance(client_socket, addr):
         else:
             client_entrance(client_socket, addr)
 
-    except (ValueError, socket.error) as e:
-        client_socket.close()
-        print(f"Exception: {e}")
-        # Information leakage - revealing which part of a login attempt failed
-        send_message(client_socket, f"Database error: {e}")
     except socket.error as e:
         print(f"Socket Error: {e}")
         client_socket.close()
-        return
-    except KeyboardInterrupt:
-        print("Keyboard interrupt - stopping")
-        client_socket.close()
+        # Logging the error
+        log_error(e, "socket.error", "NO QUERY", addr[0])
+        return None
+
     except Exception as e:
         print(f"Unexpected Error: {e}")
         client_socket.close()
+        # Logging the error
+        log_error(e, "Unexpected Error", "NO QUERY", addr[0])
         return
 
 
@@ -720,10 +764,15 @@ def main():
     except socket.error as e:
         print(f"Socket Error: {e}")
         client_socket.close()
-    except KeyboardInterrupt:
-        print("Keyboard interrupt - stopping")
+        # Logging the error
+        log_error(e, "socket.error", "NO QUERY", addr[0])
+        return None
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        # Logging the error
+        log_error(e, "Unexpected Error", "NO QUERY", addr[0])
+        return
     finally:
         server_socket.close()
 
