@@ -349,7 +349,7 @@ def client_place_order(client_socket, client_username, addr):
         for payment in payments:
             print(payment)
 
-        handle_client(client_socket,client_username)
+        handle_client(client_socket, client_username, addr)
     except socket.error as e:
         print(f"Socket Error: {e}")
         client_socket.close()
@@ -519,50 +519,47 @@ def handle_client(client_socket, client_username, addr):
 
 def login(client_socket, addr):
     try:
+
+        login_succ = 0
         # Receiving the client's username
         client_username = receive_message(client_socket, addr)
 
         # Receiving the client's password
         client_password = receive_message(client_socket, addr)
-        if client_password and client_username:
-            # Connecting to the database
-            conn = sqlite3.connect("Small Business")
+        # Connecting to the database
+        conn = sqlite3.connect("Small Business")
 
-            # Creating a cursor
-            curr = conn.cursor()
+        # Creating a cursor
+        curr = conn.cursor()
 
-            # Execute a parameterized query to fetch the password
-            # No input validation, vulnerable to SQL Injection
-            query = f"SELECT password FROM accounts WHERE username = '{client_username}'"
-            curr.execute(query)
-            result = curr.fetchone()
-            curr.execute("SELECT * FROM accounts")
-            rows = curr.fetchall()
-            print("accounts:")
-            for row in rows:
-                print(row)
+        # Execute a parameterized query to fetch the password
+        # No input validation, vulnerable to SQL Injection
+        query = f"SELECT password FROM accounts WHERE username = '{client_username}'"
+        curr.execute(query)
+        result = curr.fetchone()
+        curr.execute("SELECT * FROM accounts")
+        rows = curr.fetchall()
+        print("accounts:")
+        for row in rows:
+            print(row)
 
-            # Check if we got a result from accounts
-            if result:
-                print(result)
-                password = result[0]
-                print(f"Password for {client_username}: {password}")
+        # Check if we got a result from accounts
+        if result:
+            print(result)
+            password = result[0]
+            print(f"Password for {client_username}: {password}")
 
-                # Weak password validation
-                if password.lower() == client_password.lower():
-                    print("Login Successful")
-                    send_message(client_socket, "Login Successful", addr)
+            # Weak password validation
+            if password.lower() == client_password.lower():
+                print("Login Successful")
+                send_message(client_socket, "Login Successful", addr)
 
-                    # Log new connection
-                    log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
-                else:
-                    send_message(client_socket, "Login Failed", addr)
-                    print("Login Failed")
+                print(client_username)
 
-                    # Log new connection
-                    log_connection(addr[0], client_username, client_password, "FAILED")
+                login_succ = 1
 
-                    login(client_socket, addr)
+                # Log new connection
+                log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
             else:
                 send_message(client_socket, "Login Failed", addr)
                 print("Login Failed")
@@ -572,7 +569,13 @@ def login(client_socket, addr):
 
                 login(client_socket, addr)
         else:
-            return None
+            send_message(client_socket, "Login Failed", addr)
+            print("Login Failed")
+
+            # Log new connection
+            log_connection(addr[0], client_username, client_password, "FAILED")
+
+            login(client_socket, addr)
     except socket.error as e:
         print(f"Socket Error: {e}")
         client_socket.close()
@@ -610,8 +613,10 @@ def login(client_socket, addr):
         # Close connection
         conn.close()
 
-        if client_username:
+        if login_succ == 1:
             return client_username
+        else:
+            return None
 
 
 def sign_up(client_socket, addr):
