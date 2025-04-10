@@ -20,23 +20,38 @@ LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
 
+class ClientDisconnectedError(Exception):
+    """Raised when client disconnects unexpectedly"""
+    pass
+
+
 def receive_message(client_socket, addr):
     try:
         request_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+        if not request_length_field:  # Client disconnected cleanly
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
         request_length = int(request_length_field)
+
         request = client_socket.recv(request_length).decode()
+
+        if not request:  # Client disconnected during message
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
         print(request)
 
-        # Simulated Latency - to mimic a real life system facing heavy traffic
-        delay = random.uniform(0.1, 2)  # Delay between 100ms to 2 seconds
+        # Simulated Latency
+        delay = random.uniform(0.1, 2)
         time.sleep(delay)
+
         return request
 
-    except (socket.error, ValueError) as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(f"{type(e).__name__}: {e}")
         client_socket.close()
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
-        return
+        raise  # CRUCIAL: re-raising the error so login() can exit cleanly
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
     except Exception as e:
@@ -107,7 +122,7 @@ def log_connection(source_ip, username, password,  login_status):
 
 # Can send the error to the client for extra vulnerability
 def log_error(error_message, error_type, query, source_ip, traceback_str):
-    print("logging error")
+    print("logging the error")
     entry = {
         "timestamp": get_timestamp(),
         "error_type": error_type,
@@ -184,6 +199,7 @@ def client_view_client_profile(client_socket, client_username, addr):
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
+        client_socket.close()
         # Logging the error
         if database_updates == 1:
             log_error(str(e), type(e).__name__, f"SELECT id FROM accounts WHERE username = '{client_username}'"
@@ -227,6 +243,7 @@ def client_view_menu(client_socket, client_username, addr):
         handle_client(client_socket, client_username, addr)
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
         client_socket.close()
@@ -334,6 +351,8 @@ def client_place_order(client_socket, client_username, addr):
         print(f"{type(e).__name__}: {e}")
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
+
+        client_socket.close()
         # Logging the error
         if database_updates == [1, 0, 0, 0, 0, 0]:
             log_error(str(e), type(e).__name__, f"INSERT INTO orders (customer_name, address, order_details,"
@@ -363,6 +382,7 @@ def client_place_order(client_socket, client_username, addr):
         return None
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
+        client_socket.close()
         # Logging the error
         if database_updates == [1, 0, 0, 0, 0, 0]:
             log_error(str(e), type(e).__name__,  f"INSERT INTO orders (customer_name, address, order_details,"
@@ -444,6 +464,7 @@ def handle_client(client_socket, client_username, addr):
                 pass    # Add end timer, network log
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
+        client_socket.close()
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
@@ -505,6 +526,8 @@ def login(client_socket, addr):
             # Logging the error
             log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username ="
                       f" '{client_username}'", addr[0], traceback.format_exc())
+            client_socket.close()
+            return
         except KeyboardInterrupt:
             print("Keyboard interrupt - stopping")
             return None
@@ -571,6 +594,7 @@ def sign_up(client_socket, addr):
         return new_user_username
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
+        client_socket.close()
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
@@ -664,13 +688,11 @@ def main():
 
         # Logging the error
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
-        return None
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
         client_socket.close()
         # Logging the error
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
-        return
     finally:
         server_socket.close()
 
