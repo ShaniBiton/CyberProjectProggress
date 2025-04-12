@@ -175,7 +175,7 @@ def client_view_client_profile(client_socket, client_username, addr):
         client_id = curr.fetchone()
 
         #  Logging interaction with the database
-        log_interaction(addr[0], client_username, ({"accounts": "id"}), "accounts",
+        log_interaction(addr[0], (client_username,), ({"accounts": "id"}),
                         f"SELECT id FROM accounts WHERE username = '{client_username}'")
         send_message(client_socket, client_id[0], addr)
         # Client username
@@ -186,7 +186,7 @@ def client_view_client_profile(client_socket, client_username, addr):
         client_password = curr.fetchone()
 
         #  Logging interaction with the database
-        log_interaction(addr[0], client_username, ({"accounts": "password"}),
+        log_interaction(addr[0], (client_username,), ({"accounts": "password"}),
                         f"SELECT password FROM accounts WHERE username = '{client_username}'")
         send_message(client_socket, client_password[0], addr)
         # Client full name
@@ -195,7 +195,7 @@ def client_view_client_profile(client_socket, client_username, addr):
         client_full_name = curr.fetchone()
 
         #  Logging interaction with the database
-        log_interaction(addr[0], client_username, ({"accounts": "full_name"}),
+        log_interaction(addr[0], (client_username,), ({"accounts": "full_name"}),
                         f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
         send_message(client_socket, client_full_name[0], addr)
         handle_client(client_socket, client_username, addr)
@@ -317,9 +317,12 @@ def client_place_order(client_socket, client_username, addr):
             database_updates[1] = 1
 
             #  Logging interaction with the database
-            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv), ({"orders": "customer_name"}),
-                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
-                            f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
+            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv, payment_amount),
+                            ({"payments": "order_id"}, {"payments": "card_number"},
+                             {"payments": "expiry_date"}, {"payments": "cvv"}, {"payments": "amount"}),
+                            f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
+                            f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                            f"'{payment_amount}','FAILED');")
 
             send_message(client_socket, "payment failed", addr)
         else:
@@ -331,6 +334,8 @@ def client_place_order(client_socket, client_username, addr):
 
             #  Logging interaction with the database
             log_interaction(addr[0], (order_client_name, order_address, order_details),
+                            ({"accounts": "customer_name"}, {"accounts": "address"},
+                             {"accounts": "order_details"}),
                             f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
                             f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
 
@@ -343,8 +348,11 @@ def client_place_order(client_socket, client_username, addr):
 
             #  Logging interaction with the database
             log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
-                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
-                            f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
+                            ({"payments": "order_id"}, {"payments": "card_number"},
+                             {"payments": "expiry_date"}, {"payments": "cvv"}, {"payments": "amount"}),
+                            f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
+                            f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                            f"'{payment_amount}','SUCCESSFUL');")
             database_updates[3] = 1
 
             send_message(client_socket, "Order placed! Payment complete!", addr)
@@ -447,7 +455,9 @@ def handle_client(client_socket, client_username, addr):
         curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
 
         # Logging the interaction
-        log_interaction(addr[0], client_username, )
+        log_interaction(addr[0], (client_username,), ({"accounts": "security_level"}),
+                        f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+
         client_sec_level = curr.fetchone()
         print(client_username)
         print(client_sec_level)
@@ -526,6 +536,10 @@ def login(client_socket, addr):
             curr.execute(query)
             result = curr.fetchone()
 
+            # Logging the interaction
+            log_interaction(addr[0], (client_username,), ({"accounts": "password"}),
+                            f"SELECT password FROM accounts WHERE username = '{client_username}'")
+
             if result:
                 password = result[0]
                 if password.lower() == client_password.lower():
@@ -596,6 +610,13 @@ def sign_up(client_socket, addr):
                  f" '{new_user_full_name}', 2);")
         curr.execute(query)
         database_updates += 1
+
+        # Logging the interaction
+        log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
+                        ({"accounts": "id"}, {"accounts": "username"}, {"accounts": "password"},
+                         {"accounts": "full_name"}), f"INSERT INTO accounts VALUES('{new_user_id}',"
+                                                     f" '{new_user_username}', '{new_user_password}',"
+                                                     f" '{new_user_full_name}', 2);")
 
         # Committing changes
         conn.commit()
