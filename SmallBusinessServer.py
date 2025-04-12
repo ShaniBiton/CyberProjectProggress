@@ -50,14 +50,12 @@ def receive_message(client_socket, addr):
     except (socket.error, ValueError, ConnectionResetError) as e:
         print(f"{type(e).__name__}: {e}")
         client_socket.close()
-        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
         raise  # CRUCIAL: re-raising the error so login() can exit cleanly
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
     except Exception as e:
         print(f"Unexpected Error: {e}")
         client_socket.close()
-        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
         return
 
 
@@ -99,6 +97,13 @@ def write_log(file_name, log_entry):
                 logs = []
     else:
         logs = []
+
+    # Append new log entry
+    logs.append(log_entry)
+
+    # Write back to the file
+    with open(file_path, "w", encoding="utf-8") as file:
+        json.dump(logs, file, indent=4)
 
 
 # Function to get timestamp
