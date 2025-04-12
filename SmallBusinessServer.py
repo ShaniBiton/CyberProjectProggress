@@ -120,7 +120,7 @@ def log_connection(source_ip, username, password,  login_status):
         "password": password,
         "login_status": login_status
     }
-    # login_status: SUCCESSFUL or FAILED
+    # login_status: SUCCESSFUL or FAILED or SIGNUP
 
     write_log("connection_logs.json", entry)
 
@@ -595,6 +595,9 @@ def sign_up(client_socket, addr):
         # Printing all rows
         for row in rows:
             print(row)
+            
+        # Logging the new connection
+        log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
 
         return new_user_username
     except (sqlite3.Error, ValueError, socket.error) as e:
