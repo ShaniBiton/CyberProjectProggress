@@ -175,8 +175,8 @@ def client_view_client_profile(client_socket, client_username, addr):
         client_id = curr.fetchone()
 
         #  Logging interaction with the database
-        log_interaction(addr[0], client_username, "accounts", f"SELECT id FROM accounts WHERE"
-                                                              f" username = '{client_username}'")
+        log_interaction(addr[0], client_username, ({"accounts": "id"}), "accounts",
+                        f"SELECT id FROM accounts WHERE username = '{client_username}'")
         send_message(client_socket, client_id[0], addr)
         # Client username
         send_message(client_socket, client_username, addr)
@@ -186,8 +186,8 @@ def client_view_client_profile(client_socket, client_username, addr):
         client_password = curr.fetchone()
 
         #  Logging interaction with the database
-        log_interaction(addr[0], client_username, "accounts", f"SELECT password FROM accounts WHERE"
-                                                              f" username = '{client_username}'")
+        log_interaction(addr[0], client_username, ({"accounts": "password"}),
+                        f"SELECT password FROM accounts WHERE username = '{client_username}'")
         send_message(client_socket, client_password[0], addr)
         # Client full name
         client_full_name_curr = curr.execute(f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
@@ -195,8 +195,8 @@ def client_view_client_profile(client_socket, client_username, addr):
         client_full_name = curr.fetchone()
 
         #  Logging interaction with the database
-        log_interaction(addr[0], client_username, "accounts", f"SELECT full_name FROM accounts"
-                                                              f" WHERE username = '{client_username}'")
+        log_interaction(addr[0], client_username, ({"accounts": "full_name"}),
+                        f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
         send_message(client_socket, client_full_name[0], addr)
         handle_client(client_socket, client_username, addr)
     except (socket.error, ValueError, sqlite3.error) as e:
@@ -304,6 +304,8 @@ def client_place_order(client_socket, client_username, addr):
 
             #  Logging interaction with the database
             log_interaction(addr[0], (order_client_name, order_address, order_details),
+                            ({"accounts": "customer_name"}, {"accounts": "address"},
+                             {"accounts": "order_details"}),
                             f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
                             f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
 
@@ -314,7 +316,8 @@ def client_place_order(client_socket, client_username, addr):
 
             database_updates[1] = 1
 
-            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
+            #  Logging interaction with the database
+            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv), ({"orders": "customer_name"}),
                             f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
                             f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
 
@@ -326,6 +329,11 @@ def client_place_order(client_socket, client_username, addr):
             curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
                          f"'{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
 
+            #  Logging interaction with the database
+            log_interaction(addr[0], (order_client_name, order_address, order_details),
+                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                            f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
+
             database_updates[2] = 1
 
             order_id = curr.lastrowid
@@ -333,6 +341,10 @@ def client_place_order(client_socket, client_username, addr):
                          f"'{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
                          f"'{payment_amount}', 'SUCCESSFUL');")
 
+            #  Logging interaction with the database
+            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
+                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                            f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
             database_updates[3] = 1
 
             send_message(client_socket, "Order placed! Payment complete!", addr)
@@ -433,6 +445,9 @@ def handle_client(client_socket, client_username, addr):
         curr = conn.cursor()
 
         curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+
+        # Logging the interaction
+        log_interaction(addr[0], client_username, )
         client_sec_level = curr.fetchone()
         print(client_username)
         print(client_sec_level)
@@ -595,7 +610,7 @@ def sign_up(client_socket, addr):
         # Printing all rows
         for row in rows:
             print(row)
-            
+
         # Logging the new connection
         log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
 
