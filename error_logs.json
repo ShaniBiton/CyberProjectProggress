@@ -1,0 +1,26 @@
+[
+    {
+        "timestamp": "2025-04-12 13:29:13",
+        "error_type": "ConnectionResetError",
+        "error_message": "Client disconnected unexpectedly",
+        "query": "NO QUERY",
+        "source_ip": "127.0.0.1",
+        "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\shani\\PycharmProjects\\CyberProject\\SmallBusinessServer.py\", line 33, in receive_message\n    raise ConnectionResetError(\"Client disconnected unexpectedly\")\nConnectionResetError: Client disconnected unexpectedly\n"
+    },
+    {
+        "timestamp": "2025-04-12 13:29:13",
+        "error_type": "ConnectionResetError",
+        "error_message": "Client disconnected unexpectedly",
+        "query": "SELECT security_level FROM accounts WHERE username = 'johnny1'",
+        "source_ip": "127.0.0.1",
+        "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\shani\\PycharmProjects\\CyberProject\\SmallBusinessServer.py\", line 448, in handle_client\n    user_action = receive_message(client_socket, addr)\n  File \"C:\\Users\\shani\\PycharmProjects\\CyberProject\\SmallBusinessServer.py\", line 33, in receive_message\n    raise ConnectionResetError(\"Client disconnected unexpectedly\")\nConnectionResetError: Client disconnected unexpectedly\n"
+    },
+    {
+        "timestamp": "2025-04-12 13:33:45",
+        "error_type": "ConnectionResetError",
+        "error_message": "Client disconnected unexpectedly",
+        "query": "SELECT security_level FROM accounts WHERE username = 'johnny1'",
+        "source_ip": "127.0.0.1",
+        "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\shani\\PycharmProjects\\CyberProject\\SmallBusinessServer.py\", line 446, in handle_client\n    user_action = receive_message(client_socket, addr)\n  File \"C:\\Users\\shani\\PycharmProjects\\CyberProject\\SmallBusinessServer.py\", line 33, in receive_message\n    raise ConnectionResetError(\"Client disconnected unexpectedly\")\nConnectionResetError: Client disconnected unexpectedly\n"
+    }
+]
