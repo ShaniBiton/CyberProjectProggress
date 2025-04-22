@@ -9,6 +9,11 @@ REQUEST_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
 MAX_REQUEST_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
 
 
+class ClientDisconnectedError(Exception):
+    """Raised when client disconnects unexpectedly"""
+    pass
+
+
 def send_message(client_socket, request):
     try:
         request_length = len(request)
@@ -20,26 +25,42 @@ def send_message(client_socket, request):
     except socket.error as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def receive_message(client_socket):
     try:
-        response_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
-        response_length = int(response_length_field)
-        response = client_socket.recv(response_length).decode()
-        # print(response)
-        return response
-    except socket.error as e:
-        print(e)
+        request_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+        if not request_length_field:  # Client disconnected cleanly
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
+        request_length = int(request_length_field)
+
+        request = client_socket.recv(request_length).decode()
+
+        if not request:  # Client disconnected during message
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
+        return request
+
+    except (socket.error, ValueError, ConnectionResetError) as e:
+        print(f"{type(e).__name__}: {e}")
         client_socket.close()
+        raise  # CRUCIAL: re-raising the error so login() can exit cleanly
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
     except Exception as e:
-        print(e)
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        return
+
 
 
 def login(client_socket):
@@ -57,10 +78,13 @@ def login(client_socket):
     except socket.error as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def sign_up(client_socket):
@@ -83,13 +107,16 @@ def sign_up(client_socket):
 
         print("Successful user sign up!")
         client_handling(client_socket)
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def place_order(client_socket):
@@ -184,13 +211,16 @@ def place_order(client_socket):
         order_status = receive_message(client_socket)
         print(order_status)
         client_handling(client_socket)
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def view_menu(client_socket):
@@ -200,10 +230,13 @@ def view_menu(client_socket):
     except socket.error as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def view_profile(client_socket):
@@ -221,13 +254,16 @@ def view_profile(client_socket):
         client_full_name = receive_message(client_socket)
         print(f"Full Name - {client_full_name}")
         client_handling(client_socket)
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def view_accounts(client_socket):
@@ -235,13 +271,16 @@ def view_accounts(client_socket):
         accounts_table = receive_message(client_socket)
         print(accounts_table)
         client_handling(client_socket)
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def view_orders(client_socket):
@@ -249,13 +288,16 @@ def view_orders(client_socket):
         orders_table = receive_message(client_socket)
         print(orders_table)
         client_handling(client_socket)
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def view_payments(client_socket):
@@ -263,13 +305,16 @@ def view_payments(client_socket):
         payments_table = receive_message(client_socket)
         print(payments_table)
         client_handling(client_socket)
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def client_handling(client_socket):
@@ -317,13 +362,16 @@ def client_handling(client_socket):
                 break
             else:
                 choice = input("Incorrect input! Try again: ")
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
 
 
 def main():
@@ -344,12 +392,15 @@ def main():
                 break
             else:
                 login_or_signup = input("Incorrect Input! Try again: ")
-    except socket.error as e:
+    except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
+        return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
+        return
     except Exception as e:
         print(e)
+        return
     finally:
         client_socket.close()
 
