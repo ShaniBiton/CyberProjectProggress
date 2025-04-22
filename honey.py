@@ -1,6 +1,9 @@
 import sqlite3
 import json
 from typing import Iterable
+import pandas as pd
+import sqlite3
+import matplotlib.pyplot as plt
 
 
 def interactions_over_time():
@@ -14,28 +17,40 @@ def interactions_over_time():
             logs = json.load(file)
 
         if isinstance(logs, Iterable):
-            for i in range(1, len(logs)):
-                if logs[i-1]["timestamp"][:10] == logs[i]["timestamp"][:10]:
-                    curr.execute("SELECT num_interactions FROM interaction_over_time WHERE time = (?)",
-                                 logs[i-1]["timestamp"][:10])
-                    num_inter = curr.fetchone()
+            for log in logs:
+                curr.execute("SELECT num_interactions WHERE time = (?)", log["timestamp"][:10])
+                num_inter = curr.fetchone()
+                if num_inter:
                     num_inter += 1
                     # Add one more interaction for this date
                     curr.execute("UPDATE interaction_over_time SET num_interactions = (?) WHERE time = (?)",
-                                 (num_inter, logs[i-1]["timestamp"][:10]))
+                                 (num_inter, log["timestamp"][:10]))
                 else:
-                    curr.execute("INSERT INTO interaction_over_time VALUES(?, '1')", )
+                    curr.execute("INSERT INTO interaction_over_time VALUES(?, '1')", log["timestamp"][:10])
         else:
-            print(logs)
+            curr.execute("SELECT num_interactions WHERE time = (?)", logs["timestamp"][:10])
+            num_inter = curr.fetchone()
+            if num_inter:
+                num_inter += 1
+                # Add one more interaction for this date
+                curr.execute("UPDATE interaction_over_time SET num_interactions = (?) WHERE time = (?)",
+                             (num_inter, logs["timestamp"][:10]))
+            else:
+                curr.execute("INSERT INTO interaction_over_time VALUES(?, '1')", logs["timestamp"][:10])
 
+        # Query the data
+        query = "SELECT time, num_interactions FROM interaction_over_time"
+        df = pd.read_sql_query(query, conn)
 
-
-
-
-
-
-
-
+        plt.figure(figsize=(10, 6))
+        plt.plot(df['time'], df['interactions'], marker='o', linestyle='-', color='royalblue')
+        plt.title("Number of Interactions Over Time")
+        plt.xlabel("Time")
+        plt.ylabel("Interactions")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.grid(True)
+        plt.show()
 
     except FileNotFoundError:
         print("File not found: logs/interaction_logs.json")
@@ -68,6 +83,8 @@ def main():
 
     # Creating the table for types of errors
     curr.execute("CREATE TABLE IF NOT EXISTS error_types(type text PRIMARY KEY, amount int)")
+
+    interactions_over_time()
 
     # Committing changes
     conn.commit()
