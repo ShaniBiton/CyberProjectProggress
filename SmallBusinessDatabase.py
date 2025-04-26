@@ -25,11 +25,37 @@ curr.execute("INSERT INTO accounts VALUES('192837465', 'sarah_cute', 'letmein', 
              "'2');")
 curr.execute("INSERT INTO accounts VALUES('765432198','emma*cool', 'abc123', 'Emma White',  "
              "'2');")
+curr.execute("INSERT INTO accounts VALUES('111111111','hyperuser', 'abcabc', 'Lilibeth Beth',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('222222222','megauser', 'a1b2c3', 'Lizzy Beth',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('000000000','test', '123456789', 'Lily Richard',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('123456789','Demo', '1234', 'Emily Beth',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('123123123','mysql', 'abcde', 'Lilibeth Richard',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('123456123','Oracle', 'aaaaa', 'Emily Richard',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('234523434','guest', '123abc', 'Benn Richard',  "
+             "'2');")
 
 # Adding admin users with a higher security level
 curr.execute("INSERT INTO accounts VALUES('176435897', 'admin', 'admin', 'Robert Richerman',  "
              "'1');")
 curr.execute("INSERT INTO accounts VALUES('928475648', 'root', 'welcome', 'Lily Mickelson ',  "
+             "'1');")
+curr.execute("INSERT INTO accounts VALUES('756456346', 'administrator', 'welcome', 'Amy Smith ',  "
+             "'1');")
+curr.execute("INSERT INTO accounts VALUES('756757346', 'privileged', 'letmein', 'Ben Mickelson ',  "
+             "'1');")
+curr.execute("INSERT INTO accounts VALUES('756499946', 'adminuser', '1234567', 'Ben Robert ',  "
+             "'1');")
+curr.execute("INSERT INTO accounts VALUES('756499946', 'rootuser', '111111', 'Ben Robert ',  "
+             "'1');")
+curr.execute("INSERT INTO accounts VALUES('756499946', 'adm', '012345', 'Ben Robert ',  "
+             "'1');")
+curr.execute("INSERT INTO accounts VALUES('756499946', 'admin123', '123', 'Ben Robert ',  "
              "'1');")
 
 curr.execute("SELECT * FROM accounts")
