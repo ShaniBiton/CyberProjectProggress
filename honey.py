@@ -160,9 +160,26 @@ def attack_types():
                     "' UNION SELECT address FROM orders--"]
     sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1"]
 
-    rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select", r"(?i)drop\s+table",
-                   r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
-                   r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)"]
+    sql_rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select", r"(?i)drop\s+table",
+                       r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
+                       r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)", r".*\s*;\s*INSERT\s+INTO"]
+
+    with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+        logs = json.load(file)
+
+    if isinstance(logs, Iterable):
+        for log in logs:
+            for payload in log["payload"]:
+                if payload_detector(payload, sql_rg_patterns, sql_trigger_words):
+                    curr.execute("SELECT num_attacks WHERE a_type = 'SQL Injection'")
+                    num_attacks = curr.fetchone()
+                    updated_num_attacks = num_attacks + 1
+                    if num_attacks[0]:
+                        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'SQL Injection'",
+                                     (updated_num_attacks,))
+                    else:
+                        curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
+
 
 
 
