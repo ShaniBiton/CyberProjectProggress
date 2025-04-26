@@ -164,12 +164,22 @@ def attack_types():
                        r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
                        r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)", r".*\s*;\s*INSERT\s+INTO"]
 
+    # XSS
+    xss_payloads = ["<script>", "<run>", "</script>", "</run>", "<img", "<style", "<form", "<body", "<input", "alert(",
+                    "prompt(", "confirm(", "eval(", "setTimeout(", "setInterval(", "Function(", "onerror=", "onload=",
+                    "onclick=", "onmouseover=", "onfocus=", "onblur=", "onsubmit=", "onkeydown=", "onmousemove=",
+                    "onmouseout=", "onkeypress="]
+
+    xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=", r"<\s*img[^>]*>",
+                       r"`(?i)(alert", r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
+
     with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
         logs = json.load(file)
 
     if isinstance(logs, Iterable):
         for log in logs:
             for payload in log["payload"]:
+                # SQL Injection
                 if payload_detector(payload, sql_rg_patterns, sql_trigger_words):
                     curr.execute("SELECT num_attacks WHERE a_type = 'SQL Injection'")
                     num_attacks = curr.fetchone()
@@ -179,6 +189,18 @@ def attack_types():
                                      (updated_num_attacks,))
                     else:
                         curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
+
+                # XSS
+                if payload_detector(payload, xss_rg_patterns, xss_payloads):
+                    curr.execute("SELECT num_attacks WHERE a_type = 'XSS'")
+                    num_attacks = curr.fetchone()
+                    updated_num_attacks = num_attacks + 1
+                    if num_attacks[0]:
+                        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'XSS'",
+                                     (updated_num_attacks,))
+                    else:
+                        curr.execute("INSERT INTO attack_types VALUES(?,?)", ("XSS", 1))
+
 
 
 
