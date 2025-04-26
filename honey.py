@@ -2,13 +2,8 @@ import sqlite3
 import json
 from typing import Iterable
 import pandas as pd
-import sqlite3
 import matplotlib.pyplot as plt
-import dash
-from dash import dcc, html
 import plotly.express as px
-import sqlite3
-import pandas as pd
 import re
 
 
@@ -164,6 +159,10 @@ def attack_types():
                     "' UNION SELECT number, cvv FROM credit_cards--", "' UNION SELECT card_number, cvv FROM payments--",
                     "' UNION SELECT address FROM orders--"]
     sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1"]
+
+    rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select", r"(?i)drop\s+table",
+                   r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
+                   r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)"]
 
 
 
