@@ -4,6 +4,12 @@ from typing import Iterable
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
+import dash
+from dash import dcc, html
+import plotly.express as px
+import sqlite3
+import pandas as pd
+import re
 
 
 def interactions_over_time(gs):
@@ -79,7 +85,7 @@ def interactions_over_time(gs):
         conn.close()
 
 
-def error_types():
+def error_types(fig, ds):
     # Connecting to the database
     conn = sqlite3.connect("HoneyStats")
 
@@ -116,8 +122,8 @@ def error_types():
     query = "SELECT type, amount FROM error_types"
     df = pd.read_sql_query(query, conn)
 
-    # Sort values if needed (optional)
-    df = df.sort_values(by="amount", ascending=True)
+    # Create plots
+    bar_fig = px.bar(df, x="amount", y="error_type", orientation='h', title="Error Types")
 
     # Create the horizontal bar chart
     plt.figure(figsize=(10, 6))
@@ -133,6 +139,37 @@ def error_types():
     plt.show()
 
 
+def payload_detector(sus_inputs, rg_pattern, input_txt):
+    for keyword in sus_inputs:
+        if keyword.upper() in input_txt.upper():
+            return True
+    for pattern in rg_pattern:
+        if re.search(pattern, input_txt):
+            return True
+    return False
+
+
+def attack_types():
+    # Connecting to the database
+    conn = sqlite3.connect("HoneyStats")
+
+    # Creating a cursor
+    curr = conn.cursor()
+    # SQL Injection
+    # Analysing the payloads
+    sql_payloads = ["' OR '1'='1", "' OR 1=1--", "' OR '' = '", "' UNION SELECT username, password FROM users--",
+                    "' UNION SELECT username, password FROM accounts--", "' AND 1=CONVERT(int, 'text')--",
+                    "' OR IF(1=1, SLEEP(3), 0)--", "'; DROP TABLE users--", "'; DROP TABLE accounts--",
+                    "'; INSERT INTO users (username) VALUES ('evil')--", "' OR '1'='1' --", "' OR '1'='1' /* ",
+                    "' UNION SELECT number, cvv FROM credit_cards--", "' UNION SELECT card_number, cvv FROM payments--",
+                    "' UNION SELECT address FROM orders--"]
+    sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1"]
+
+
+
+
+
+
 def main():
     # Connecting to the database
     conn = sqlite3.connect("HoneyStats")
@@ -146,12 +183,8 @@ def main():
     # Creating the table for types of errors
     curr.execute("CREATE TABLE IF NOT EXISTS error_types(type text PRIMARY KEY, amount int)")
 
-    # Create dashboard
-    # fig = plt.figure(constrained_layout=True, figsize=(18, 12))
-    # gs = fig.add_gridspec(3, 3)
-
-    # interactions_over_time(gs)
-    error_types()
+    # Creating the table for attack types
+    curr.execute("CREATE TABLE IF NOT EXISTS attack_types(a_type text PRIMARY KEY, num_attacks int)")
 
     # Committing changes
     conn.commit()
@@ -161,6 +194,13 @@ def main():
 
     # Close connection
     conn.close()
+
+    # Create dashboard
+    fig = plt.figure(constrained_layout=True, figsize=(18, 12))
+    gs = fig.add_gridspec(3, 3)
+
+    # interactions_over_time(gs)
+    error_types(fig, gs)
 
 
 if __name__ == "__main__":
