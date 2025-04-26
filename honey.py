@@ -201,6 +201,12 @@ def attack_types():
                     else:
                         curr.execute("INSERT INTO attack_types VALUES(?,?)", ("XSS", 1))
 
+    # Brute Force
+    brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser", "manager",
+                             "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
+                             "admin123"]
+    brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein"]
+
 
 
 
