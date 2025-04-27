@@ -14,10 +14,14 @@ def interactions_over_time(gs):
 
         # Creating a cursor
         curr = conn.cursor()
+        logs = []
         with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
-            logs = json.load(file)
+            for line in file:
+                if line.strip():  # Skip empty lines
+                    log_entry = json.loads(line)
+                    logs.append(log_entry)
 
-        if isinstance(logs, Iterable):
+        if logs:
             for log in logs:
                 curr.execute("SELECT num_interactions FROM interaction_over_time WHERE time = (?)",
                              (log["timestamp"][:10],))
@@ -30,16 +34,6 @@ def interactions_over_time(gs):
                 else:
                     curr.execute("INSERT INTO interaction_over_time VALUES(?, ?)",
                                   (log["timestamp"][:10], 1))
-        else:
-            curr.execute("SELECT num_interactions WHERE time = (?)", logs["timestamp"][:10])
-            num_inter = curr.fetchone()
-            if num_inter:
-                updated_num_inter = num_inter[0] + 1
-                # Add one more interaction for this date
-                curr.execute("UPDATE interaction_over_time SET num_interactions = (?) WHERE time = (?)",
-                             (updated_num_inter, logs["timestamp"][:10]))
-            else:
-                curr.execute("INSERT INTO interaction_over_time VALUES(?, '1')", logs["timestamp"][:10])
 
         # Query the data
         query = "SELECT time, num_interactions FROM interaction_over_time"
@@ -86,10 +80,14 @@ def error_types(fig, ds):
 
     # Creating a cursor
     curr = conn.cursor()
-    with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
-        logs = json.load(file)
+    logs = []
+    with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.strip():  # Skip empty lines
+                log_entry = json.loads(line)
+                logs.append(log_entry)
 
-    if isinstance(logs, Iterable):
+    if logs:
         for log in logs:
             curr.execute("SELECT amount FROM error_types WHERE type = (?)",
                          (log["error_type"],))
@@ -102,16 +100,6 @@ def error_types(fig, ds):
             else:
                 curr.execute("INSERT INTO error_types VALUES(?, ?)",
                              (log["error_type"], 1))
-    else:
-        curr.execute("SELECT amount WHERE type = (?)", logs["error_type"])
-        num_inter = curr.fetchone()
-        if num_inter:
-            updated_num_inter = num_inter[0] + 1
-            # Add one more interaction for this date
-            curr.execute("UPDATE error_types SET amount = (?) WHERE type = (?)",
-                         (updated_num_inter, logs["error_type"]))
-        else:
-            curr.execute("INSERT INTO error_types VALUES(?,?)", (logs["error_type"], 1))
 
     # Query the data
     query = "SELECT type, amount FROM error_types"
@@ -173,10 +161,14 @@ def attack_types():
     xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=", r"<\s*img[^>]*>",
                        r"`(?i)(alert", r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
+    logs = []
     with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
-        logs = json.load(file)
+        for line in file:
+            if line.strip():  # Skip empty lines
+                log_entry = json.loads(line)
+                logs.append(log_entry)
 
-    if isinstance(logs, Iterable):
+    if logs:
         for log in logs:
             for payload in log["payload"]:
                 # SQL Injection
