@@ -1,4 +1,8 @@
 import json
+from typing import Iterable
+
+from cv2.aruco import Dictionary
+
 
 def read_logs_from_json(file_path):
     """
@@ -11,9 +15,13 @@ def read_logs_from_json(file_path):
         data (dict or list): Parsed JSON content from the file.
     """
     try:
+        logs = []
         with open(file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            return data
+            for line in file:
+                if line.strip():  # Skip empty lines
+                    log_entry = json.loads(line)
+                    logs.append(log_entry)
+        return logs
     except FileNotFoundError:
         print(f"File not found: {file_path}")
     except json.JSONDecodeError as e:
@@ -24,7 +32,10 @@ def read_logs_from_json(file_path):
     return None
 
 
-logs = read_logs_from_json('logs/connection_logs.json')
+logs = read_logs_from_json('logs/error_logs.json')
 
-for log in logs:
-    print(log)
+if isinstance(logs, Iterable):
+    for log in logs:
+        print(log)
+else:
+    print(logs)
