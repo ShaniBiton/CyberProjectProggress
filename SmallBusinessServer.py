@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 import traceback
 
-HOST = '127.0.0.1'  # localhost
+HOST = '192.168.1.128'  # localhost
 PORT = 1729
 
 NUM_DIGITS_LENGTH_FIELD = 2
@@ -88,22 +88,9 @@ def send_message(client_socket, response, addr):
 def write_log(file_name, log_entry):
     file_path = os.path.join(LOG_DIR, file_name)
 
-    # Loading existing logs if the file exists
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            try:
-                logs = json.load(file)
-            except json.JSONDecodeError:
-                logs = []
-    else:
-        logs = []
-
-    # Append new log entry
-    logs.append(log_entry)
-
-    # Write back to the file
-    with open(file_path, "w", encoding="utf-8") as file:
-        json.dump(logs, file, indent=4)
+    with open(file_path, "a", encoding="utf-8") as file:
+        json.dump(log_entry, file)
+        file.write("\n")  # One JSON object per line
 
 
 # Function to get timestamp
@@ -153,6 +140,7 @@ def log_interaction(source_ip, payload, resource_accessed, query):
         "timestamp": get_timestamp(),
         "source_ip": source_ip,
         "payload": payload,
+        "resource_accessed": resource_accessed,
         "query": query,
     }
     write_log("interaction_logs.json", entry)
@@ -235,11 +223,13 @@ def client_view_client_profile(client_socket, client_username, addr):
                                                 f"'{client_username}'", addr[0], traceback.format_exc())
         return
     finally:
-        # Close cursor
-        curr.close()
+        if curr:
+            # Close cursor
+            curr.close()
 
-        # Close connection
-        conn.close()
+        if conn:
+            # Close connection
+            conn.close()
 
 
 def client_view_menu(client_socket, client_username, addr):
@@ -434,14 +424,15 @@ def client_place_order(client_socket, client_username, addr):
         return None
         return
     finally:
-        # Committing changes
-        conn.commit()
+        if conn:
+            # Committing changes
+            conn.commit()
+            if conn:
+                # Close cursor
+                curr.close()
 
-        # Close cursor
-        curr.close()
-
-        # Close connection
-        conn.close()
+            # Close connection
+            conn.close()
 
 
 def handle_client(client_socket, client_username, addr):
@@ -513,14 +504,16 @@ def handle_client(client_socket, client_username, addr):
                                          f" '{client_username}'", addr[0], traceback.format_exc())
         return
     finally:
-        # Committing changes
-        conn.commit()
+        if conn:
+            # Committing changes
+            conn.commit()
 
-        # Close cursor
-        curr.close()
+            if curr:
+                # Close cursor
+                curr.close()
 
-        # Close connection
-        conn.close()
+            # Close connection
+            conn.close()
 
 
 def login(client_socket, addr):
@@ -573,11 +566,13 @@ def login(client_socket, addr):
                       f" '{client_username}'", addr[0], traceback.format_exc())
             return
         finally:
-            # Close cursor
-            curr.close()
+            if curr:
+                # Close cursor
+                curr.close()
 
-            # Close connection
-            conn.close()
+            if conn:
+                # Close connection
+                conn.close()
 
 
 def sign_up(client_socket, addr):
@@ -665,14 +660,16 @@ def sign_up(client_socket, addr):
             log_error(str(e), type(e).__name__, "SELECT * FROM accounts", addr[0], traceback.format_exc())
         return
     finally:
-        # Committing changes
-        conn.commit()
+        if conn:
+            # Committing changes
+            conn.commit()
 
-        # Close cursor
-        curr.close()
+            if curr:
+                # Close cursor
+                curr.close()
 
-        # Close connection
-        conn.close()
+            # Close connection
+            conn.close()
 
 
 def client_entrance(client_socket, addr):
@@ -743,3 +740,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# https://docs.google.com/presentation/d/1v03lQZ_-QbjAQB5bhjuKlZfRi0XViI2-Uj9FlAEtIOI/edit?usp=sharing
