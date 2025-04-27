@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
 import re
+import datetime
 
 
 def interactions_over_time(gs):
@@ -132,6 +133,10 @@ def payload_detector(sus_inputs, rg_pattern, input_txt):
     return False
 
 
+def parse_time(ts):
+    return datetime.fromisoformat(ts).timestamp()
+
+
 def attack_types():
     # Connecting to the database
     conn = sqlite3.connect("HoneyStats")
@@ -161,15 +166,15 @@ def attack_types():
     xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=", r"<\s*img[^>]*>",
                        r"`(?i)(alert", r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
-    logs = []
+    interaction_logs = []
     with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
         for line in file:
             if line.strip():  # Skip empty lines
                 log_entry = json.loads(line)
-                logs.append(log_entry)
+                interaction_logs.append(log_entry)
 
-    if logs:
-        for log in logs:
+    if interaction_logs:
+        for log in interaction_logs:
             for payload in log["payload"]:
                 # SQL Injection
                 if payload_detector(payload, sql_rg_patterns, sql_trigger_words):
@@ -199,6 +204,29 @@ def attack_types():
                              "admin123"]
     brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein"]
 
+    connection_logs = []
+    with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.strip():  # Skip empty lines
+                log_entry = json.loads(line)
+                connection_logs.append(log_entry)
+
+    request_count = 0
+    attacks = []
+    attacks_index = 0
+    for i in range(1, len(connection_logs)):
+        if (parse_time(connection_logs[i]["timestamp"]) - parse_time(connection_logs[i-1]["timestamp"]) and
+                connection_logs[i]["source_ip"] == connection_logs[i-1]["source_ip"]):
+            if request_count == 0:
+                request_count += 2
+                attacks.append({"start_time": connection_logs[i-1]["timestamp"],
+                                "end_time": connection_logs[i]["timestamp"],
+                                "requests_count": request_count,
+                                "source_ip": connection_logs[i]["source_ip"]})
+            else:
+                attacks[attacks_index]["end_time"] = connection_logs[i]["timestamp"]
+        else:
+            attacks_index += 1
 
 
 
