@@ -228,6 +228,15 @@ def attack_types():
         else:
             attacks_index += 1
 
+    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
+    num_brute_force = curr.fetchone()
+    if num_brute_force:
+        updated_brute_force = num_brute_force[0] + len(attacks)
+        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'Brute Force'",
+                     (updated_brute_force,))
+
+    
+
 
 
 
