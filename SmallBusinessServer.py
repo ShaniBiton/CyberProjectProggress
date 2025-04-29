@@ -577,59 +577,70 @@ def login(client_socket, addr):
 
 def sign_up(client_socket, addr):
     try:
-        # To note which query was executed in case of an error (for more accurate logging)
-        database_updates = 0
+        while True:
+            # To note which query was executed in case of an error (for more accurate logging)
+            database_updates = 0
 
-        # Connecting to the database
-        conn = sqlite3.connect("Small Business")
+            # Connecting to the database
+            conn = sqlite3.connect("Small Business")
 
-        # Creating a cursor
-        curr = conn.cursor()
+            # Creating a cursor
+            curr = conn.cursor()
 
-        # Receive new user data
-        # ID
-        new_user_id = receive_message(client_socket, addr)
+            # Receive new user data
+            # ID
+            new_user_id = receive_message(client_socket, addr)
 
-        # Full name
-        new_user_full_name = receive_message(client_socket, addr)
+            # Full name
+            new_user_full_name = receive_message(client_socket, addr)
 
-        # Username
-        new_user_username = receive_message(client_socket, addr)
+            # Username
+            new_user_username = receive_message(client_socket, addr)
 
-        # Password
-        new_user_password = receive_message(client_socket, addr)
+            # Password
+            new_user_password = receive_message(client_socket, addr)
 
-        # Execute a parameterized query to fetch the password
-        # No input validation, vulnerable to SQL Injection
-        query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}', '{new_user_password}',"
-                 f" '{new_user_full_name}', 2);")
-        curr.execute(query)
-        database_updates += 1
+            # Execute a parameterized query to fetch the password
+            # No input validation, vulnerable to SQL Injection
+            # Checking if the username already exists
+            curr.execute(f"SELECT password FROM accounts WHERE username = '{new_user_username}'")
+            database_username = curr.fetchone()
+            if database_username[0]:
+                send_message(client_socket, "Username already exists", addr)
+                continue
 
-        # Logging the interaction
-        log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
-                        ({"accounts": "id"}, {"accounts": "username"}, {"accounts": "password"},
-                         {"accounts": "full_name"}), f"INSERT INTO accounts VALUES('{new_user_id}',"
-                                                     f" '{new_user_username}', '{new_user_password}',"
-                                                     f" '{new_user_full_name}', 2);")
+            query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}', '{new_user_password}',"
+                     f" '{new_user_full_name}', 2);")
+            curr.execute(query)
+            database_updates += 1
 
-        # Committing changes
-        conn.commit()
+            # Logging the interaction
+            log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
+                            ({"accounts": "id"}, {"accounts": "username"}, {"accounts": "password"},
+                             {"accounts": "full_name"}), f"INSERT INTO accounts VALUES('{new_user_id}',"
+                                                         f" '{new_user_username}', '{new_user_password}',"
+                                                         f" '{new_user_full_name}', 2);")
 
-        print("Successful user sign up!")
+            # Committing changes
+            conn.commit()
 
-        # Print updated database
-        curr.execute("SELECT * FROM accounts")
-        database_updates += 1
-        rows = curr.fetchall()
+            print("Successful user sign up!")
 
-        # Printing all rows
-        for row in rows:
-            print(row)
+            # Send confirmation message
+            send_message("Sign Up succussful")
 
-        # Logging the new connection
-        log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
+            # Print updated database
+            curr.execute("SELECT * FROM accounts")
+            database_updates += 1
+            rows = curr.fetchall()
 
+            # Printing all rows
+            for row in rows:
+                print(row)
+
+            # Logging the new connection
+            log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
+            break
         return new_user_username
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
