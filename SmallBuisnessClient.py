@@ -1,6 +1,6 @@
 import socket
 
-HOST = '127.0.0.1'  # localhost
+HOST = '192.168.1.128'  # localhost
 PORT = 1729
 ADDR = (HOST, PORT)
 
@@ -89,24 +89,32 @@ def login(client_socket):
 
 def sign_up(client_socket):
     try:
-        # ID
-        user_id = input("Enter id: ")
-        send_message(client_socket, user_id)
+        while True:
+            # ID
+            user_id = input("Enter id: ")
+            send_message(client_socket, user_id)
 
-        # Full name
-        user_full_name = input("Enter full name: ")
-        send_message(client_socket, user_full_name)
+            # Full name
+            user_full_name = input("Enter full name: ")
+            send_message(client_socket, user_full_name)
 
-        # Username
-        user_username = input("Enter username: ")
-        send_message(client_socket, user_username)
+            # Username
+            user_username = input("Enter username: ")
+            send_message(client_socket, user_username)
 
-        # Password
-        user_password = input("Enter password: ")
-        send_message(client_socket, user_password)
+            # Password
+            user_password = input("Enter password: ")
+            send_message(client_socket, user_password)
 
-        print("Successful user sign up!")
-        client_handling(client_socket)
+            # Confirmation
+            conf_msg = receive_message(client_socket)
+            if conf_msg == "Username already exists":
+                print("Username already exists. Please enter a new one!")
+                continue
+
+            print("Successful user sign up!")
+            client_handling(client_socket)
+            break
     except (socket.error, ValueError, ConnectionResetError) as e:
         print(e)
         client_socket.close()
