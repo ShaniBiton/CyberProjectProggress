@@ -82,7 +82,7 @@ def error_types(fig, ds):
     # Creating a cursor
     curr = conn.cursor()
     logs = []
-    with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+    with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
         for line in file:
             if line.strip():  # Skip empty lines
                 log_entry = json.loads(line)
@@ -107,7 +107,7 @@ def error_types(fig, ds):
     df = pd.read_sql_query(query, conn)
 
     # Create plots
-    bar_fig = px.bar(df, x="amount", y="error_type", orientation='h', title="Error Types")
+    bar_fig = px.bar(df, x="amount", y="type", orientation='h', title="Error Types")
 
     # Create the horizontal bar chart
     plt.figure(figsize=(10, 6))
@@ -124,6 +124,7 @@ def error_types(fig, ds):
 
 
 def payload_detector(sus_inputs, rg_pattern, input_txt):
+    print(input_txt)
     for keyword in sus_inputs:
         if keyword.upper() in input_txt.upper():
             return True
@@ -133,8 +134,10 @@ def payload_detector(sus_inputs, rg_pattern, input_txt):
     return False
 
 
-def parse_time(ts):
-    return datetime.fromisoformat(ts).timestamp()
+def time_difference(first_time, second_time):
+    time_in_sec1 = int(first_time[11:13])*3600 + int(first_time[14:16])*60 + int(first_time[17:])
+    time_in_sec2 = int(second_time[11:13])*3600 + int(second_time[14:16])*60 + int(second_time[17:])
+    return time_in_sec2 - time_in_sec1
 
 
 def attack_types():
@@ -164,7 +167,7 @@ def attack_types():
                     "onmouseout=", "onkeypress="]
 
     xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=", r"<\s*img[^>]*>",
-                       r"`(?i)(alert", r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
+                       r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
     interaction_logs = []
     with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
@@ -176,19 +179,19 @@ def attack_types():
     if interaction_logs:
         for log in interaction_logs:
             for payload in log["payload"]:
+                print(type(payload))
                 # SQL Injection
-                if payload_detector(payload, sql_rg_patterns, sql_trigger_words):
-                    curr.execute("SELECT num_attacks WHERE a_type = 'SQL Injection'")
+                if payload_detector(sql_trigger_words, sql_rg_patterns, payload):
+                    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'SQL Injection'")
                     num_attacks = curr.fetchone()
-                    updated_num_attacks = num_attacks + 1
-                    if num_attacks[0]:
+                    if num_attacks:
                         curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'SQL Injection'",
-                                     (updated_num_attacks,))
+                                     (num_attacks[0]+1,))
                     else:
                         curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
 
                 # XSS
-                if payload_detector(payload, xss_rg_patterns, xss_payloads):
+                if payload_detector(xss_payloads, xss_rg_patterns, payload):
                     curr.execute("SELECT num_attacks WHERE a_type = 'XSS'")
                     num_attacks = curr.fetchone()
                     updated_num_attacks = num_attacks + 1
@@ -215,7 +218,7 @@ def attack_types():
     attacks = []
     attacks_index = 0
     for i in range(1, len(connection_logs)):
-        if (parse_time(connection_logs[i]["timestamp"]) - parse_time(connection_logs[i-1]["timestamp"]) and
+        if (time_difference(connection_logs[i-1]["timestamp"], connection_logs[i]["timestamp"]) <= 1 and
                 connection_logs[i]["source_ip"] == connection_logs[i-1]["source_ip"]):
             if request_count == 0:
                 request_count += 2
@@ -234,6 +237,29 @@ def attack_types():
         updated_brute_force = num_brute_force[0] + len(attacks)
         curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'Brute Force'",
                      (updated_brute_force,))
+    else:
+        curr.execute("INSERT INTO attack_types VALUES(?,?)", ('Brute Force', len(attacks)))
+
+    # Creating the graph - a pie chart
+    # Fetch the data
+    curr.execute("SELECT a_type, num_attacks FROM attack_types")
+    data = curr.fetchall()
+
+    # Separate the data into labels and sizes
+    labels = [row[0] for row in data]
+    sizes = [row[1] for row in data]
+
+    # Create the pie chart
+    plt.figure(figsize=(7, 7))
+    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    plt.title("Distribution of Things")
+    plt.axis('equal')
+    plt.tight_layout()
+    plt.show()
+
+    # Close the connection
+    curr.close()
+    conn.close()
 
     
 
@@ -268,12 +294,14 @@ def main():
     # Close connection
     conn.close()
 
+    attack_types()
+
     # Create dashboard
     fig = plt.figure(constrained_layout=True, figsize=(18, 12))
     gs = fig.add_gridspec(3, 3)
 
     # interactions_over_time(gs)
-    error_types(fig, gs)
+    # error_types(fig, gs)
 
 
 if __name__ == "__main__":
