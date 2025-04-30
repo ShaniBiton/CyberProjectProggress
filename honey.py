@@ -291,7 +291,7 @@ def main():
     # Close cursor
     curr.close()
 
-    # Close connection
+    # Close connectio
     conn.close()
 
     attack_types()
