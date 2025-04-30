@@ -525,23 +525,21 @@ def login(client_socket, addr):
             conn = sqlite3.connect("Small Business")
             curr = conn.cursor()
 
-            query = f"SELECT password FROM accounts WHERE username = '{client_username}'"
+            query = (f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND password ="
+                     f" '{client_password}'")
             curr.execute(query)
             result = curr.fetchone()
 
             # Logging the interaction
-            log_interaction(addr[0], (client_username,), ({"accounts": "password"}),
-                            f"SELECT password FROM accounts WHERE username = '{client_username}'")
+            log_interaction(addr[0], (client_username, client_password), ({"accounts": "security_level"},
+                                                                   {"accounts": "username"}, {"accounts": "password"}),
+                            f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND"
+                            f" password = '{client_password}'")
 
             if result:
-                password = result[0]
-                if password.lower() == client_password.lower():
-                    send_message(client_socket, "Login Successful", addr)
-                    log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
-                    return client_username  # success → exit loop
-                else:
-                    send_message(client_socket, "Login Failed", addr)
-                    log_connection(addr[0], client_username, client_password, "FAILED")
+                send_message(client_socket, "Login Successful", addr)
+                log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
+                return client_username  # success → exit loop
             else:
                 send_message(client_socket, "Login Failed", addr)
                 log_connection(addr[0], client_username, client_password, "FAILED")
@@ -698,7 +696,6 @@ def client_entrance(client_socket, addr):
 
         print(f"Client username : {client_username}")
         if client_username:
-            print(1)
             handle_client(client_socket, client_username, addr)
         else:
             client_entrance(client_socket, addr)
