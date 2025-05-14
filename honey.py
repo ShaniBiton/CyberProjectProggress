@@ -6,6 +6,11 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import re
 import datetime
+from collections import defaultdict, deque
+from datetime import datetime
+
+TIME_WINDOW_SECONDS = 10
+MIN_REQUESTS_IN_WINDOW = 8
 
 
 def interactions_over_time(gs):
@@ -134,6 +139,10 @@ def payload_detector(sus_inputs, rg_pattern, input_txt):
     return False
 
 
+def parse_timestamp(ts):
+    return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+
+
 def time_difference(first_time, second_time):
     time_in_sec1 = int(first_time[11:13])*3600 + int(first_time[14:16])*60 + int(first_time[17:])
     time_in_sec2 = int(second_time[11:13])*3600 + int(second_time[14:16])*60 + int(second_time[17:])
@@ -214,36 +223,42 @@ def attack_types():
                 log_entry = json.loads(line)
                 connection_logs.append(log_entry)
 
-    request_count = 0
+    ip_windows = defaultdict(deque)
     attacks = []
-    attacks_index = -1
-    for i in range(1, len(connection_logs)):
-        if (time_difference(connection_logs[i-1]["timestamp"], connection_logs[i]["timestamp"]) <= 1 and
-                connection_logs[i]["source_ip"] == connection_logs[i-1]["source_ip"]):
-            if request_count == 0:
-                request_count += 2
-                attacks.append({"start_time": connection_logs[i-1]["timestamp"],
-                                "end_time": connection_logs[i]["timestamp"],
-                                "requests_count": request_count,
-                                "source_ip": connection_logs[i]["source_ip"]})
-                attacks_index += 1
-            else:
-                # attacks[attacks_index]["end_time"] = connection_logs[i]["timestamp"]
-                print(len(attacks))
-                print(attacks_index)
-                print(attacks[attacks_index]["end_time"])
 
+    for entry in connection_logs:
+        ip = entry["source_ip"]
+        timestamp = parse_timestamp(entry["timestamp"])
 
+        # Add the current timestamp to the IP's deque
+        ip_windows[ip].append(timestamp)
+
+        # Remove timestamps outside the sliding window
+        while (ip_windows[ip] and
+               (timestamp - ip_windows[ip][0]).total_seconds() > TIME_WINDOW_SECONDS):
+            ip_windows[ip].popleft()
+
+        # If enough requests are in the window, log the brute-force attempt
+        if len(ip_windows[ip]) >= MIN_REQUESTS_IN_WINDOW:
+            attacks.append({
+                "source_ip": ip,
+                "start_time": ip_windows[ip][0].strftime("%Y-%m-%d %H:%M:%S"),
+                "end_time": ip_windows[ip][-1].strftime("%Y-%m-%d %H:%M:%S"),
+                "requests_count": len(ip_windows[ip])
+            })
+            # Optional: clear deque to avoid multiple logs of same burst
+            ip_windows[ip].clear()
+
+    # Result
+    for attack in attacks:
+        print(attack)
     curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
     num_brute_force = curr.fetchone()
     if num_brute_force:
-        updated_brute_force = num_brute_force[0] + len(attacks)
-        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'Brute Force'",
-                     (updated_brute_force,))
+        curr.execte("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?", (num_brute_force[0] + len(attacks),
+                                                                                 'Brute Force'))
     else:
-        curr.execute("INSERT INTO attack_types VALUES(?,?)", ('Brute Force', len(attacks)))
-
-    print(attacks)
+        curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', len(attacks)))
 
     # Creating the graph - a pie chart
     # Fetch the data
