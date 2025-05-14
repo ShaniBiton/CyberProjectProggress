@@ -49,13 +49,19 @@ def receive_message(client_socket, addr):
 
     except (socket.error, ValueError, ConnectionResetError) as e:
         print(f"{type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         raise  # CRUCIAL: re-raising the error so login() can exit cleanly
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
     except Exception as e:
         print(f"Unexpected Error: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         return
 
 
@@ -73,14 +79,20 @@ def send_message(client_socket, response, addr):
         time.sleep(delay)
     except (socket.error, ValueError) as e:
         print(f"{type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
         return
     except KeyboardInterrupt:
         print("Keyboard interrupt - stopping")
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
         return
 
@@ -189,7 +201,10 @@ def client_view_client_profile(client_socket, client_username, addr):
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         if database_updates == 1:
             log_error(str(e), type(e).__name__, f"SELECT id FROM accounts WHERE username = '{client_username}'"
@@ -206,7 +221,10 @@ def client_view_client_profile(client_socket, client_username, addr):
         return None
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         if database_updates == 1:
             log_error(str(e), type(e).__name__, "Unexpected Error", f"SELECT id FROM accounts WHERE"
@@ -230,7 +248,10 @@ def client_view_menu(client_socket, client_username, addr):
         return
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
         return
 
@@ -355,7 +376,10 @@ def client_place_order(client_socket, client_username, addr):
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         if database_updates == [1, 0, 0, 0, 0, 0]:
             log_error(str(e), type(e).__name__, f"INSERT INTO orders (customer_name, address, order_details,"
@@ -385,7 +409,10 @@ def client_place_order(client_socket, client_username, addr):
         return None
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         if database_updates == [1, 0, 0, 0, 0, 0]:
             log_error(str(e), type(e).__name__,  f"INSERT INTO orders (customer_name, address, order_details,"
@@ -462,7 +489,10 @@ def handle_client(client_socket, client_username, addr):
                     pass
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
@@ -475,7 +505,10 @@ def handle_client(client_socket, client_username, addr):
         return None
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging Error
         log_error(str(e), type(e).__name__, f"SELECT security_level FROM accounts WHERE username ="
                                          f" '{client_username}'", addr[0], traceback.format_exc())
@@ -517,14 +550,20 @@ def login(client_socket, addr):
             # Logging the error
             log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username ="
                       f" '{client_username}'", addr[0], traceback.format_exc())
-            client_socket.close()
+            try:
+                client_socket.close()
+            except OSError:
+                pass
             return
         except KeyboardInterrupt:
             print("Keyboard interrupt - stopping")
             return None
         except Exception as e:
             print(f"Unexpected Error: {type(e).__name__}: {e}")
-            client_socket.close()
+            try:
+                client_socket.close()
+            except OSError:
+                pass
             # Logging the error
             log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username ="
                       f" '{client_username}'", addr[0], traceback.format_exc())
@@ -599,7 +638,10 @@ def sign_up(client_socket, addr):
             return new_user_username
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # # Information leakage - revealing which part of a login attempt failed
         # send_message(client_socket, f"Database error: {e}")
 
@@ -616,7 +658,10 @@ def sign_up(client_socket, addr):
         return None
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         if database_updates == 1:
             log_error(str(e), type(e).__name__, f"INSERT INTO accounts VALUES('{new_user_id}', "
@@ -648,7 +693,10 @@ def client_entrance(client_socket, addr):
 
     except (socket.error, ValueError) as e:
         print(f"{type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
 
         # Logging the error
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
@@ -656,7 +704,10 @@ def client_entrance(client_socket, addr):
 
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
         return
@@ -679,13 +730,19 @@ def main():
             client_thread.start()
     except (socket.error, ValueError) as e:
         print(f"{type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
 
         # Logging the error
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
     except Exception as e:
         print(f"Unexpected Error: {type(e).__name__}: {e}")
-        client_socket.close()
+        try:
+            client_socket.close()
+        except OSError:
+            pass
         # Logging the error
         log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
     finally:
