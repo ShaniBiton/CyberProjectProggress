@@ -216,7 +216,7 @@ def attack_types():
 
     request_count = 0
     attacks = []
-    attacks_index = 0
+    attacks_index = -1
     for i in range(1, len(connection_logs)):
         if (time_difference(connection_logs[i-1]["timestamp"], connection_logs[i]["timestamp"]) <= 1 and
                 connection_logs[i]["source_ip"] == connection_logs[i-1]["source_ip"]):
@@ -226,10 +226,13 @@ def attack_types():
                                 "end_time": connection_logs[i]["timestamp"],
                                 "requests_count": request_count,
                                 "source_ip": connection_logs[i]["source_ip"]})
+                attacks_index += 1
             else:
-                attacks[attacks_index]["end_time"] = connection_logs[i]["timestamp"]
-        else:
-            attacks_index += 1
+                # attacks[attacks_index]["end_time"] = connection_logs[i]["timestamp"]
+                print(len(attacks))
+                print(attacks_index)
+                print(attacks[attacks_index]["end_time"])
+
 
     curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
     num_brute_force = curr.fetchone()
@@ -239,6 +242,8 @@ def attack_types():
                      (updated_brute_force,))
     else:
         curr.execute("INSERT INTO attack_types VALUES(?,?)", ('Brute Force', len(attacks)))
+
+    print(attacks)
 
     # Creating the graph - a pie chart
     # Fetch the data
