@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 import traceback
 
-HOST = '192.168.1.128'  # localhost
+HOST = '127.0.0.1'  # localhost
 PORT = 1729
 
 NUM_DIGITS_LENGTH_FIELD = 2
@@ -149,44 +149,41 @@ def log_interaction(source_ip, payload, resource_accessed, query):
 def client_view_client_profile(client_socket, client_username, addr):
     try:
         # Connecting to the database
-        conn = sqlite3.connect("Small Business")
+        with sqlite3.connect("Small Business") as conn:
+            curr = conn.cursor()
+            # To note which query was executed in case of an error (for more accurate logging)
+            database_updates = 0
 
-        # Creating a cursor
-        curr = conn.cursor()
+            # Client ID
+            client_id_curr = curr.execute(f"SELECT id FROM accounts WHERE username = '{client_username}'")
+            database_updates += 1
+            client_id = curr.fetchone()
 
-        # To note which query was executed in case of an error (for more accurate logging)
-        database_updates = 0
+            #  Logging interaction with the database
+            log_interaction(addr[0], (client_username,), ({"accounts": "id"}),
+                            f"SELECT id FROM accounts WHERE username = '{client_username}'")
+            send_message(client_socket, client_id[0], addr)
+            # Client username
+            send_message(client_socket, client_username, addr)
+            # Client password
+            client_password_curr = curr.execute(f"SELECT password FROM accounts WHERE username = '{client_username}'")
+            database_updates += 1
+            client_password = curr.fetchone()
 
-        # Client ID
-        client_id_curr = curr.execute(f"SELECT id FROM accounts WHERE username = '{client_username}'")
-        database_updates += 1
-        client_id = curr.fetchone()
+            #  Logging interaction with the database
+            log_interaction(addr[0], (client_username,), ({"accounts": "password"}),
+                            f"SELECT password FROM accounts WHERE username = '{client_username}'")
+            send_message(client_socket, client_password[0], addr)
+            # Client full name
+            client_full_name_curr = curr.execute(f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
+            database_updates += 1
+            client_full_name = curr.fetchone()
 
-        #  Logging interaction with the database
-        log_interaction(addr[0], (client_username,), ({"accounts": "id"}),
-                        f"SELECT id FROM accounts WHERE username = '{client_username}'")
-        send_message(client_socket, client_id[0], addr)
-        # Client username
-        send_message(client_socket, client_username, addr)
-        # Client password
-        client_password_curr = curr.execute(f"SELECT password FROM accounts WHERE username = '{client_username}'")
-        database_updates += 1
-        client_password = curr.fetchone()
-
-        #  Logging interaction with the database
-        log_interaction(addr[0], (client_username,), ({"accounts": "password"}),
-                        f"SELECT password FROM accounts WHERE username = '{client_username}'")
-        send_message(client_socket, client_password[0], addr)
-        # Client full name
-        client_full_name_curr = curr.execute(f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
-        database_updates += 1
-        client_full_name = curr.fetchone()
-
-        #  Logging interaction with the database
-        log_interaction(addr[0], (client_username,), ({"accounts": "full_name"}),
-                        f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
-        send_message(client_socket, client_full_name[0], addr)
-        handle_client(client_socket, client_username, addr)
+            #  Logging interaction with the database
+            log_interaction(addr[0], (client_username,), ({"accounts": "full_name"}),
+                            f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
+            send_message(client_socket, client_full_name[0], addr)
+            handle_client(client_socket, client_username, addr)
     except (socket.error, ValueError, sqlite3.error) as e:
         print(f"{type(e).__name__}: {e}")
         # # Information leakage - revealing which part of a login attempt failed
@@ -222,14 +219,6 @@ def client_view_client_profile(client_socket, client_username, addr):
             log_error(str(e), type(e).__name__, f"SELECT full_name FROM accounts WHERE username = "
                                                 f"'{client_username}'", addr[0], traceback.format_exc())
         return
-    finally:
-        if curr:
-            # Close cursor
-            curr.close()
-
-        if conn:
-            # Close connection
-            conn.close()
 
 
 def client_view_menu(client_socket, client_username, addr):
@@ -252,116 +241,115 @@ def client_place_order(client_socket, client_username, addr):
         database_updates = [0, 0, 0, 0, 0, 0]
 
         # Connecting to the database
-        conn = sqlite3.connect("Small Business")
+        with sqlite3.connect("Small Business") as conn:
+            # Creating a cursor
+            curr = conn.cursor()
 
-        # Creating a cursor
-        curr = conn.cursor()
+            # Receive order from client
+            # Order details
+            order_details = receive_message(client_socket, addr)
 
-        # Receive order from client
-        # Order details
-        order_details = receive_message(client_socket, addr)
+            # Name
+            order_client_name = receive_message(client_socket, addr)
 
-        # Name
-        order_client_name = receive_message(client_socket, addr)
+            # Address
+            order_address = receive_message(client_socket, addr)
 
-        # Address
-        order_address = receive_message(client_socket, addr)
+            # Payment Information
+            # Card number
+            payment_card = receive_message(client_socket, addr)
 
-        # Payment Information
-        # Card number
-        payment_card = receive_message(client_socket, addr)
+            # Expiry date
+            payment_card_exdate = receive_message(client_socket, addr)
 
-        # Expiry date
-        payment_card_exdate = receive_message(client_socket, addr)
+            # CVV
+            payment_card_cvv = receive_message(client_socket, addr)
 
-        # CVV
-        payment_card_cvv = receive_message(client_socket, addr)
+            # Amount
+            payment_amount = receive_message(client_socket, addr)
 
-        # Amount
-        payment_amount = receive_message(client_socket, addr)
+            # Randomize SUCCESSFUL or FAILED payment
+            payment_status_random = random.randint(0, 2)
+            quarry = ""
+            if payment_status_random == 0:
+                # Insert data into the orders and payments tables in the database
+                # Execute a parameterized query to fetch the password
+                # No input validation, vulnerable to SQL Injection
+                curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
+                             f"'{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
 
-        # Randomize SUCCESSFUL or FAILED payment
-        payment_status_random = random.randint(0, 2)
-        quarry = ""
-        if payment_status_random == 0:
-            # Insert data into the orders and payments tables in the database
-            # Execute a parameterized query to fetch the password
-            # No input validation, vulnerable to SQL Injection
-            curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
-                         f"'{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
+                database_updates[0] = 1
 
-            database_updates[0] = 1
+                #  Logging interaction with the database
+                log_interaction(addr[0], (order_client_name, order_address, order_details),
+                                ({"accounts": "customer_name"}, {"accounts": "address"},
+                                 {"accounts": "order_details"}),
+                                f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                                f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
 
-            #  Logging interaction with the database
-            log_interaction(addr[0], (order_client_name, order_address, order_details),
-                            ({"accounts": "customer_name"}, {"accounts": "address"},
-                             {"accounts": "order_details"}),
-                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
-                            f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
+                order_id = curr.lastrowid
+                curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES "
+                             f"('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                             f"'{payment_amount}','FAILED');")
 
-            order_id = curr.lastrowid
-            curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES "
-                         f"('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
-                         f"'{payment_amount}','FAILED');")
+                database_updates[1] = 1
 
-            database_updates[1] = 1
+                #  Logging interaction with the database
+                log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv, payment_amount),
+                                ({"payments": "order_id"}, {"payments": "card_number"},
+                                 {"payments": "expiry_date"}, {"payments": "cvv"}, {"payments": "amount"}),
+                                f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
+                                f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                                f"'{payment_amount}','FAILED');")
 
-            #  Logging interaction with the database
-            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv, payment_amount),
-                            ({"payments": "order_id"}, {"payments": "card_number"},
-                             {"payments": "expiry_date"}, {"payments": "cvv"}, {"payments": "amount"}),
-                            f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
-                            f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
-                            f"'{payment_amount}','FAILED');")
+                send_message(client_socket, "payment failed", addr)
+            else:
+                # Insert data into the orders and payments tables in the database
+                # Execute a parameterized query to fetch the password
+                # No input validation, vulnerable to SQL Injection
+                curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
+                             f"'{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
 
-            send_message(client_socket, "payment failed", addr)
-        else:
-            # Insert data into the orders and payments tables in the database
-            # Execute a parameterized query to fetch the password
-            # No input validation, vulnerable to SQL Injection
-            curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
-                         f"'{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
+                #  Logging interaction with the database
+                log_interaction(addr[0], (order_client_name, order_address, order_details),
+                                ({"accounts": "customer_name"}, {"accounts": "address"},
+                                 {"accounts": "order_details"}),
+                                f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                                f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
 
-            #  Logging interaction with the database
-            log_interaction(addr[0], (order_client_name, order_address, order_details),
-                            ({"accounts": "customer_name"}, {"accounts": "address"},
-                             {"accounts": "order_details"}),
-                            f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
-                            f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
+                database_updates[2] = 1
 
-            database_updates[2] = 1
+                order_id = curr.lastrowid
+                curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES ("
+                             f"'{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                             f"'{payment_amount}', 'SUCCESSFUL');")
 
-            order_id = curr.lastrowid
-            curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES ("
-                         f"'{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
-                         f"'{payment_amount}', 'SUCCESSFUL');")
+                #  Logging interaction with the database
+                log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
+                                ({"payments": "order_id"}, {"payments": "card_number"},
+                                 {"payments": "expiry_date"}, {"payments": "cvv"}, {"payments": "amount"}),
+                                f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
+                                f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                                f"'{payment_amount}','SUCCESSFUL');")
+                database_updates[3] = 1
 
-            #  Logging interaction with the database
-            log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
-                            ({"payments": "order_id"}, {"payments": "card_number"},
-                             {"payments": "expiry_date"}, {"payments": "cvv"}, {"payments": "amount"}),
-                            f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
-                            f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
-                            f"'{payment_amount}','SUCCESSFUL');")
-            database_updates[3] = 1
+                send_message(client_socket, "Order placed! Payment complete!", addr)
 
-            send_message(client_socket, "Order placed! Payment complete!", addr)
+            # Print the orders table
+            curr.execute("SELECT * FROM orders")
+            database_updates[4] = 1
+            orders = curr.fetchall()
+            for order in orders:
+                print(order)
 
-        # Print the orders table
-        curr.execute("SELECT * FROM orders")
-        database_updates[4] = 1
-        orders = curr.fetchall()
-        for order in orders:
-            print(order)
+            # Print the payments table
+            curr.execute("SELECT * FROM payments")
+            database_updates[5] = 1
+            payments = curr.fetchall()
+            for payment in payments:
+                print(payment)
 
-        # Print the payments table
-        curr.execute("SELECT * FROM payments")
-        database_updates[5] = 1
-        payments = curr.fetchall()
-        for payment in payments:
-            print(payment)
-
-        handle_client(client_socket, client_username, addr)
+            handle_client(client_socket, client_username, addr)
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
         # # Information leakage - revealing which part of a login attempt failed
@@ -423,66 +411,55 @@ def client_place_order(client_socket, client_username, addr):
             log_error(str(e), type(e).__name__, "SELECT * FROM payments", addr[0], traceback.format_exc())
         return None
         return
-    finally:
-        if conn:
-            # Committing changes
-            conn.commit()
-            if conn:
-                # Close cursor
-                curr.close()
-
-            # Close connection
-            conn.close()
 
 
 def handle_client(client_socket, client_username, addr):
     try:
         # Connecting to the database
-        conn = sqlite3.connect("Small Business")
+        with sqlite3.connect("Small Business") as conn:
+            # Creating a cursor
+            curr = conn.cursor()
 
-        # Creating a cursor
-        curr = conn.cursor()
+            curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
 
-        curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+            # Logging the interaction
+            log_interaction(addr[0], (client_username,), ({"accounts": "security_level"}),
+                            f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
 
-        # Logging the interaction
-        log_interaction(addr[0], (client_username,), ({"accounts": "security_level"}),
-                        f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+            client_sec_level = curr.fetchone()
+            print(client_username)
+            print(client_sec_level)
+            if client_sec_level:
+                print(client_sec_level[0])
 
-        client_sec_level = curr.fetchone()
-        print(client_username)
-        print(client_sec_level)
-        if client_sec_level:
-            print(client_sec_level[0])
+                # Send Client's Security level
+                send_message(client_socket, f"Security Level - {client_sec_level[0]}", addr)
 
-            # Send Client's Security level
-            send_message(client_socket, f"Security Level - {client_sec_level[0]}", addr)
-
-            # User logged in, can execute several actions, now chose one:
-            user_action = receive_message(client_socket, addr)
-            if user_action == "order":
-                print("order")
-                client_place_order(client_socket, client_username, addr)
-            elif user_action == "menu":
-                print("menu")
-                client_view_menu(client_socket, client_username, addr)
-            elif user_action == "profile":
-                print("profile")
-                client_view_client_profile(client_socket, client_username, addr)
-            elif user_action == "view accounts":
-                print("view accounts")
-                send_message(client_socket, "The accounts table", addr)
-                handle_client(client_socket, client_username, addr)
-            elif user_action == "view orders":
-                print("view orders")
-                send_message(client_socket, "The orders table", addr)
-                handle_client(client_socket, client_username, addr)
-            elif user_action == "view payments":
-                print("view payments")
-                send_message(client_socket, "The payments table", addr)
-                handle_client(client_socket, client_username, addr)
-            elif user_action == "exit":
-                pass    # Add end timer, network log
+                # User logged in, can execute several actions, now chose one:
+                user_action = receive_message(client_socket, addr)
+                if user_action == "order":
+                    print("order")
+                    client_place_order(client_socket, client_username, addr)
+                elif user_action == "menu":
+                    print("menu")
+                    client_view_menu(client_socket, client_username, addr)
+                elif user_action == "profile":
+                    print("profile")
+                    client_view_client_profile(client_socket, client_username, addr)
+                elif user_action == "view accounts":
+                    print("view accounts")
+                    send_message(client_socket, "The accounts table", addr)
+                    handle_client(client_socket, client_username, addr)
+                elif user_action == "view orders":
+                    print("view orders")
+                    send_message(client_socket, "The orders table", addr)
+                    handle_client(client_socket, client_username, addr)
+                elif user_action == "view payments":
+                    print("view payments")
+                    send_message(client_socket, "The payments table", addr)
+                    handle_client(client_socket, client_username, addr)
+                elif user_action == "exit":
+                    pass
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
         client_socket.close()
@@ -503,17 +480,6 @@ def handle_client(client_socket, client_username, addr):
         log_error(str(e), type(e).__name__, f"SELECT security_level FROM accounts WHERE username ="
                                          f" '{client_username}'", addr[0], traceback.format_exc())
         return
-    finally:
-        if conn:
-            # Committing changes
-            conn.commit()
-
-            if curr:
-                # Close cursor
-                curr.close()
-
-            # Close connection
-            conn.close()
 
 
 def login(client_socket, addr):
@@ -522,27 +488,27 @@ def login(client_socket, addr):
             client_username = receive_message(client_socket, addr)
             client_password = receive_message(client_socket, addr)
 
-            conn = sqlite3.connect("Small Business")
-            curr = conn.cursor()
+            with sqlite3.connect("Small Business") as conn:
+                curr = conn.cursor()
 
-            query = (f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND password ="
-                     f" '{client_password}'")
-            curr.execute(query)
-            result = curr.fetchone()
+                query = (f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND password ="
+                         f" '{client_password}'")
+                curr.execute(query)
+                result = curr.fetchone()
 
-            # Logging the interaction
-            log_interaction(addr[0], (client_username, client_password), ({"accounts": "security_level"},
-                                                                   {"accounts": "username"}, {"accounts": "password"}),
-                            f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND"
-                            f" password = '{client_password}'")
+                # Logging the interaction
+                log_interaction(addr[0], (client_username, client_password), ({"accounts": "security_level"},
+                                                                       {"accounts": "username"}, {"accounts": "password"}),
+                                f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND"
+                                f" password = '{client_password}'")
 
-            if result:
-                send_message(client_socket, "Login Successful", addr)
-                log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
-                return client_username  # success → exit loop
-            else:
-                send_message(client_socket, "Login Failed", addr)
-                log_connection(addr[0], client_username, client_password, "FAILED")
+                if result:
+                    send_message(client_socket, "Login Successful", addr)
+                    log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
+                    return client_username  # success → exit loop
+                else:
+                    send_message(client_socket, "Login Failed", addr)
+                    log_connection(addr[0], client_username, client_password, "FAILED")
         except (sqlite3.Error, ValueError, socket.error) as e:
             print(f"{type(e).__name__}: {e}")
             # # Information leakage - revealing which part of a login attempt failed
@@ -563,14 +529,6 @@ def login(client_socket, addr):
             log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username ="
                       f" '{client_username}'", addr[0], traceback.format_exc())
             return
-        finally:
-            if curr:
-                # Close cursor
-                curr.close()
-
-            if conn:
-                # Close connection
-                conn.close()
 
 
 def sign_up(client_socket, addr):
@@ -580,66 +538,65 @@ def sign_up(client_socket, addr):
             database_updates = 0
 
             # Connecting to the database
-            conn = sqlite3.connect("Small Business")
+            with sqlite3.connect("Small Business") as conn:
+                # Creating a cursor
+                curr = conn.cursor()
 
-            # Creating a cursor
-            curr = conn.cursor()
+                # Receive new user data
+                # ID
+                new_user_id = receive_message(client_socket, addr)
 
-            # Receive new user data
-            # ID
-            new_user_id = receive_message(client_socket, addr)
+                # Full name
+                new_user_full_name = receive_message(client_socket, addr)
 
-            # Full name
-            new_user_full_name = receive_message(client_socket, addr)
+                # Username
+                new_user_username = receive_message(client_socket, addr)
 
-            # Username
-            new_user_username = receive_message(client_socket, addr)
+                # Password
+                new_user_password = receive_message(client_socket, addr)
 
-            # Password
-            new_user_password = receive_message(client_socket, addr)
+                # Execute a parameterized query to fetch the password
+                # No input validation, vulnerable to SQL Injection
+                # Checking if the username already exists
+                curr.execute(f"SELECT password FROM accounts WHERE username = '{new_user_username}'")
+                database_username = curr.fetchone()
+                if database_username[0]:
+                    send_message(client_socket, "Username already exists", addr)
+                    continue
 
-            # Execute a parameterized query to fetch the password
-            # No input validation, vulnerable to SQL Injection
-            # Checking if the username already exists
-            curr.execute(f"SELECT password FROM accounts WHERE username = '{new_user_username}'")
-            database_username = curr.fetchone()
-            if database_username[0]:
-                send_message(client_socket, "Username already exists", addr)
-                continue
+                query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}', '{new_user_password}',"
+                         f" '{new_user_full_name}', 2);")
+                curr.execute(query)
+                database_updates += 1
 
-            query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}', '{new_user_password}',"
-                     f" '{new_user_full_name}', 2);")
-            curr.execute(query)
-            database_updates += 1
+                # Logging the interaction
+                log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
+                                ({"accounts": "id"}, {"accounts": "username"}, {"accounts": "password"},
+                                 {"accounts": "full_name"}), f"INSERT INTO accounts VALUES('{new_user_id}',"
+                                                             f" '{new_user_username}', '{new_user_password}',"
+                                                             f" '{new_user_full_name}', 2);")
 
-            # Logging the interaction
-            log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
-                            ({"accounts": "id"}, {"accounts": "username"}, {"accounts": "password"},
-                             {"accounts": "full_name"}), f"INSERT INTO accounts VALUES('{new_user_id}',"
-                                                         f" '{new_user_username}', '{new_user_password}',"
-                                                         f" '{new_user_full_name}', 2);")
+                # Committing changes
+                conn.commit()
 
-            # Committing changes
-            conn.commit()
+                print("Successful user sign up!")
 
-            print("Successful user sign up!")
+                # Send confirmation message
+                send_message("Sign Up succussful")
 
-            # Send confirmation message
-            send_message("Sign Up succussful")
+                # Print updated database
+                curr.execute("SELECT * FROM accounts")
+                database_updates += 1
+                rows = curr.fetchall()
 
-            # Print updated database
-            curr.execute("SELECT * FROM accounts")
-            database_updates += 1
-            rows = curr.fetchall()
+                # Printing all rows
+                for row in rows:
+                    print(row)
 
-            # Printing all rows
-            for row in rows:
-                print(row)
-
-            # Logging the new connection
-            log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
-            break
-        return new_user_username
+                # Logging the new connection
+                log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
+                break
+            return new_user_username
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
         client_socket.close()
@@ -668,17 +625,6 @@ def sign_up(client_socket, addr):
         elif database_updates == 2:
             log_error(str(e), type(e).__name__, "SELECT * FROM accounts", addr[0], traceback.format_exc())
         return
-    finally:
-        if conn:
-            # Committing changes
-            conn.commit()
-
-            if curr:
-                # Close cursor
-                curr.close()
-
-            # Close connection
-            conn.close()
 
 
 def client_entrance(client_socket, addr):
