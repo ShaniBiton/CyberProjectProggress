@@ -145,7 +145,7 @@ def client_view_client_profile(client_socket, client_username, addr):
             client_id = curr.fetchone()
 
             #  Logging interaction with the database
-            log_interaction(addr[0], (client_username,), ({"accounts": ["id"]}),
+            log_interaction(addr[0], (client_username,), ("accounts", ["id", "username"]),
                             f"SELECT id FROM accounts WHERE username = '{client_username}'")
             send_message(client_socket, client_id[0], addr)
             # Client username
@@ -156,7 +156,7 @@ def client_view_client_profile(client_socket, client_username, addr):
             client_password = curr.fetchone()
 
             #  Logging interaction with the database
-            log_interaction(addr[0], (client_username,), ({"accounts": ["password"]}),
+            log_interaction(addr[0], (client_username,), ("accounts", ["password", "username"]),
                             f"SELECT password FROM accounts WHERE username = '{client_username}'")
             send_message(client_socket, client_password[0], addr)
             # Client full name
@@ -165,7 +165,7 @@ def client_view_client_profile(client_socket, client_username, addr):
             client_full_name = curr.fetchone()
 
             #  Logging interaction with the database
-            log_interaction(addr[0], (client_username,), ({"accounts": ["full_name"]}),
+            log_interaction(addr[0], (client_username,), ("accounts", ["full_name", "username"]),
                             f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
             send_message(client_socket, client_full_name[0], addr)
             handle_client(client_socket, client_username, addr)
@@ -263,7 +263,7 @@ def client_place_order(client_socket, client_username, addr):
 
                 #  Logging interaction with the database
                 log_interaction(addr[0], (order_client_name, order_address, order_details),
-                                ({"orders": ["customer_name", "address", "order_details"]}),
+                                ("orders", ["customer_name", "address", "order_details"]),
                                 f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
                                 f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
 
@@ -276,7 +276,7 @@ def client_place_order(client_socket, client_username, addr):
 
                 #  Logging interaction with the database
                 log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv, payment_amount),
-                                {"payments": ["order_id", "card_number", "expiry_date", "cvv", "amount"]},
+                                ("payments", ["order_id", "card_number", "expiry_date", "cvv", "amount"]),
                                 f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
                                 f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
                                 f"'{payment_amount}','FAILED');")
@@ -291,7 +291,7 @@ def client_place_order(client_socket, client_username, addr):
 
                 #  Logging interaction with the database
                 log_interaction(addr[0], (order_client_name, order_address, order_details),
-                                {"orders": ["customer_name", "address", "order_details"]},
+                                ("orders", ["customer_name", "address", "order_details"]),
                                 f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
                                 f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
 
@@ -304,7 +304,7 @@ def client_place_order(client_socket, client_username, addr):
 
                 #  Logging interaction with the database
                 log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
-                                {"payments": ["order_id", "card_number", "expiry_date", "cvv", "amount"]},
+                                ("payments", ["order_id", "card_number", "expiry_date", "cvv", "amount"]),
                                 f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
                                 f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
                                 f"'{payment_amount}','SUCCESSFUL');")
@@ -397,7 +397,7 @@ def handle_client(client_socket, client_username, addr):
             curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
 
             # Logging the interaction
-            log_interaction(addr[0], (client_username,), {"accounts": ["security_level"]},
+            log_interaction(addr[0], (client_username,), ("accounts", ["security_level", "username"]),
                             f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
 
             client_sec_level = curr.fetchone()
@@ -473,9 +473,9 @@ def login(client_socket, addr):
                 result = curr.fetchone()
 
                 # Logging the interaction
-                log_interaction(addr[0], (client_username, client_password), {"accounts":
+                log_interaction(addr[0], (client_username, client_password), ("accounts",
                                                                               ["security_level", "username",
-                                                                               "password"]},
+                                                                               "password"]),
                                 f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND"
                                 f" password = '{client_password}'")
 
@@ -546,7 +546,7 @@ def sign_up(client_socket, addr):
 
                 # Logging the interaction
                 log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
-                                {"accounts": ["id", "username", "password", "full_name"]},
+                                ("accounts", ["username", "password", "full_name"]),
                                 f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}',"
                                 f" '{new_user_password}', '{new_user_full_name}', 2);")
 
