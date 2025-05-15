@@ -226,8 +226,23 @@ def attack_types():
                     else:
                         curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
 
+                    # Database hits
                     for column in log["resource_accessed"][1]:
                         database_hits[log["resource_accessed"][0]][column] += 1
+
+                    # Attack distribution over time
+                    curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                                 "AND attack_type = 'SQL Injection'",
+                                 (log["timestamp"][:9],))
+                    amount_this_date = curr.fetchone()
+                    if amount_this_date:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:9], amount_this_date[0]+1, "SQL Injection"))
+                    else:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:9], 1, "SQL Injection"))
+
+                curr.commit()
 
                 # XSS
                 if payload_detector(xss_payloads, xss_rg_patterns, payload):
@@ -243,6 +258,19 @@ def attack_types():
                     for column in log["resource_accessed"][1]:
                         database_hits[log["resource_accessed"][0]][column] += 1
 
+                    # Attack distribution over time
+                    curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                                 "AND attack_type = 'XSS'",
+                                 (log["timestamp"][:9],))
+                    amount_this_date = curr.fetchone()
+                    if amount_this_date:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:9], amount_this_date[0]+1, "XSS"))
+                    else:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:9], 1, "XSS"))
+
+    curr.commit()
     # Brute Force
     brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser", "manager",
                              "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
@@ -285,6 +313,18 @@ def attack_types():
     # Result
     for attack in attacks:
         print(attack)
+        # Attack distribution over time
+        curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                     "AND attack_type = 'Brute Force'",
+                     (attack["start_time"][:9],))
+        amount_this_date = curr.fetchone()
+        if amount_this_date:
+            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                         (attack["start_time"][:9], amount_this_date[0] + 1, "Brute Force"))
+        else:
+            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                         (log["start_time"][:9], 1, "Brute Force"))
+
     curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
     num_brute_force = curr.fetchone()
     if num_brute_force:
@@ -295,20 +335,20 @@ def attack_types():
 
     # Creating the graph - a pie chart
     # Fetch the data
-    # curr.execute("SELECT a_type, num_attacks FROM attack_types")
-    # data = curr.fetchall()
-    #
-    # # Separate the data into labels and sizes
-    # labels = [row[0] for row in data]
-    # sizes = [row[1] for row in data]
-    #
-    # # Create the pie chart
-    # plt.figure(figsize=(7, 7))
-    # plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-    # plt.title("Distribution of Things")
-    # plt.axis('equal')
-    # plt.tight_layout()
-    # plt.show()
+    curr.execute("SELECT a_type, num_attacks FROM attack_types")
+    data = curr.fetchall()
+
+    # Separate the data into labels and sizes
+    labels = [row[0] for row in data]
+    sizes = [row[1] for row in data]
+
+    # Create the pie chart
+    plt.figure(figsize=(7, 7))
+    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    plt.title("Distribution of Things")
+    plt.axis('equal')
+    plt.tight_layout()
+    plt.show()
 
     # Prepare data for bar plot
     bar_data = []
@@ -330,18 +370,34 @@ def attack_types():
         "payments": "#99FF99"
     }
 
-    # Plot grouped bar graph
-    plt.figure(figsize=(12, 6))
-    sns.barplot(data=bar_df, x="Column", y="Count", hue="Table", palette=palette)
-    plt.title("Column Access Frequency by Table")
-    plt.xlabel("Column")
-    plt.ylabel("Access Count")
-    plt.xticks(rotation=45)
-    plt.legend(title="Table")
-    plt.tight_layout()
-    plt.show()
+    # # Plot grouped bar graph
+    # plt.figure(figsize=(12, 6))
+    # sns.barplot(data=bar_df, x="Column", y="Count", hue="Table", palette=palette)
+    # plt.title("Column Access Frequency by Table")
+    # plt.xlabel("Column")
+    # plt.ylabel("Access Count")
+    # plt.xticks(rotation=45)
+    # plt.legend(title="Table")
+    # plt.tight_layout()
+    # plt.show()
 
+    # query = """
+    # SELECT date, attack_type, amount
+    # FROM attack_dis_over_time
+    # """
+    # df = pd.read_sql_query(query, conn)
+    # df['date'] = pd.to_datetime(df['date'])
+    #
+    # pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
+    # pivot.plot.area(figsize=(10, 6), alpha=0.7)
+    # plt.title("Attack Types Over Time (Stacked Area)")
+    # plt.xlabel("Date")
+    # plt.ylabel("Number of Attacks")
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.show()
     # Close the connection
+    conn.commit()
     curr.close()
     conn.close()
 
@@ -361,6 +417,10 @@ def main():
 
     # Creating the table for attack types
     curr.execute("CREATE TABLE IF NOT EXISTS attack_types(a_type text PRIMARY KEY, num_attacks int)")
+
+    # Creating the table for attack distribution over time
+    curr.execute("CREATE TABLE IF NOT EXISTS attack_dis_over_time(id int PRIMARY KEY, date text, amount int,"
+                 " attack_type text)")
 
     # Committing changes
     conn.commit()
