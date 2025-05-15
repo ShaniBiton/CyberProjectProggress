@@ -1,6 +1,5 @@
 import sqlite3
 import json
-from typing import Iterable
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
@@ -8,6 +7,7 @@ import re
 import datetime
 from collections import defaultdict, deque
 from datetime import datetime
+import seaborn as sns
 
 TIME_WINDOW_SECONDS = 10
 MIN_REQUESTS_IN_WINDOW = 8
@@ -178,6 +178,33 @@ def attack_types():
     xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=", r"<\s*img[^>]*>",
                        r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
+    # Data structure for the database hit barchart
+    database_hits = {
+        "accounts": {
+            "id": 0,
+            "username": 0,
+            "password": 0,
+            "full_name": 0,
+            "security_level": 0
+        },
+        "orders": {
+            "order_id": 0,
+            "customer_name": 0,
+            "address": 0,
+            "order_details": 0,
+            "payment_status": 0
+        },
+        "payments": {
+            "payment_id": 0,
+            "order_id": 0,
+            "card_number": 0,
+            "expiry_date": 0,
+            "cvv": 0,
+            "amount": 0,
+            "status": 0
+        }
+    }
+
     interaction_logs = []
     with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
         for line in file:
@@ -199,16 +226,22 @@ def attack_types():
                     else:
                         curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
 
+                    for column in log["resource_accessed"][1]:
+                        database_hits[log["resource_accessed"][0]][column] += 1
+
                 # XSS
                 if payload_detector(xss_payloads, xss_rg_patterns, payload):
-                    curr.execute("SELECT num_attacks WHERE a_type = 'XSS'")
+                    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'XSS'")
                     num_attacks = curr.fetchone()
-                    updated_num_attacks = num_attacks + 1
-                    if num_attacks[0]:
+                    if num_attacks:
+                        updated_num_attacks = num_attacks[0] + 1
                         curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'XSS'",
                                      (updated_num_attacks,))
                     else:
                         curr.execute("INSERT INTO attack_types VALUES(?,?)", ("XSS", 1))
+
+                    for column in log["resource_accessed"][1]:
+                        database_hits[log["resource_accessed"][0]][column] += 1
 
     # Brute Force
     brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser", "manager",
@@ -262,31 +295,55 @@ def attack_types():
 
     # Creating the graph - a pie chart
     # Fetch the data
-    curr.execute("SELECT a_type, num_attacks FROM attack_types")
-    data = curr.fetchall()
+    # curr.execute("SELECT a_type, num_attacks FROM attack_types")
+    # data = curr.fetchall()
+    #
+    # # Separate the data into labels and sizes
+    # labels = [row[0] for row in data]
+    # sizes = [row[1] for row in data]
+    #
+    # # Create the pie chart
+    # plt.figure(figsize=(7, 7))
+    # plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    # plt.title("Distribution of Things")
+    # plt.axis('equal')
+    # plt.tight_layout()
+    # plt.show()
 
-    # Separate the data into labels and sizes
-    labels = [row[0] for row in data]
-    sizes = [row[1] for row in data]
+    # Prepare data for bar plot
+    bar_data = []
 
-    # Create the pie chart
-    plt.figure(figsize=(7, 7))
-    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-    plt.title("Distribution of Things")
-    plt.axis('equal')
+    for table, columns in database_hits.items():
+        for column, count in columns.items():
+            bar_data.append({
+                "Table": table,
+                "Column": column,
+                "Count": count
+            })
+
+    bar_df = pd.DataFrame(bar_data)
+
+    # Define color palette per table
+    palette = {
+        "accounts": "#FF9999",
+        "orders": "#99CCFF",
+        "payments": "#99FF99"
+    }
+
+    # Plot grouped bar graph
+    plt.figure(figsize=(12, 6))
+    sns.barplot(data=bar_df, x="Column", y="Count", hue="Table", palette=palette)
+    plt.title("Column Access Frequency by Table")
+    plt.xlabel("Column")
+    plt.ylabel("Access Count")
+    plt.xticks(rotation=45)
+    plt.legend(title="Table")
     plt.tight_layout()
     plt.show()
 
     # Close the connection
     curr.close()
     conn.close()
-
-    
-
-
-
-
-
 
 
 def main():
