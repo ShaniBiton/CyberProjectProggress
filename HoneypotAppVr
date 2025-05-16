@@ -18,6 +18,8 @@ from matplotlib.figure import Figure
 TIME_WINDOW_SECONDS = 10
 MIN_REQUESTS_IN_WINDOW = 8
 
+global database_hits
+
 
 class HoneypotApp(tk.Tk):
     def __init__(self):
@@ -81,7 +83,13 @@ class HoneypotApp(tk.Tk):
         if fig3:
             canvas3 = FigureCanvasTkAgg(fig3, master=self.container)
             canvas3.draw()
-            canvas3.get_tk_widget().grid(row=4, column=4, padx=10, pady=10)
+            canvas3.get_tk_widget().grid(row=3, column=3, padx=10, pady=10)
+        # Forth graph - Database Hits
+        fig4 = database_hitss()
+        if fig4:
+            canvas4 = FigureCanvasTkAgg(fig4, master=self.container)
+            canvas4.draw()
+            canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=10)
 
 
 # First graph - Interactions Over Time
@@ -187,9 +195,9 @@ def error_types():
     ax.set_title('Error distribution')
     ax.set_xlabel('Occurrences')
     ax.set_ylabel('Error Type')
-    ax.invert_yaxis()  # Optional: show most frequent attacks at the top
+    ax.invert_yaxis()
     ax.grid(True)
-    fig.tight_layout()  # 👈 Add this before returning
+    fig.tight_layout()
     return fig
 
 
@@ -229,19 +237,24 @@ def attack_types():
 
     return fig
 
-    # # Prepare data for bar plot
-    # bar_data = []
-    #
-    # for table, columns in database_hits.items():
-    #     for column, count in columns.items():
-    #         bar_data.append({
-    #             "Table": table,
-    #             "Column": column,
-    #             "Count": count
-    #         })
-    #
-    # bar_df = pd.DataFrame(bar_data)
-    #
+
+# Forth graph: Database Hits
+def database_hitss():
+    global database_hits
+
+    # Prepare data for bar plot
+    bar_data = []
+
+    for table, columns in database_hits.items():
+        for column, count in columns.items():
+            bar_data.append({
+                "Table": table,
+                "Column": column,
+                "Count": count
+            })
+
+    df = pd.DataFrame(bar_data)
+
     # Define color palette per table
     palette = {
         "accounts": "#FF9999",
@@ -249,52 +262,61 @@ def attack_types():
         "payments": "#99FF99"
     }
 
-    # # Plot grouped bar graph
-    # plt.figure(figsize=(12, 6))
-    # sns.barplot(data=bar_df, x="Column", y="Count", hue="Table", palette=palette)
-    # plt.title("Column Access Frequency by Table")
-    # plt.xlabel("Column")
-    # plt.ylabel("Access Count")
+    # Create a Matplotlib figure
+    fig = Figure(figsize=(6, 4), dpi=100)
+    ax = fig.add_subplot(111)
+
+    # Assign colors to each bar based on the table name
+    colors = df["Table"].map(palette)
+
+    # Plot vertical bar chart
+    ax.bar(df["Column"], df["Count"], color=colors)
+
+    ax.set_title("Database Columns Targeted")
+    ax.set_xlabel("Column")
+    ax.set_ylabel("Hits")
+    ax.set_ylim(0, df["Count"].max() + 5)
+    ax.tick_params(axis='x', rotation=30)
+    ax.grid(axis='y')
+
+    fig.tight_layout()
+    return fig
+
+
+    # query = """
+    # SELECT date, attack_type, amount
+    # FROM attack_dis_over_time
+    # """
+    # df = pd.read_sql_query(query, conn)
+    # df['date'] = pd.to_datetime(df['date'])
+    #
+    # # Pivot data
+    # pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
+    #
+    # # Plot
+    # ax = pivot.plot.area(figsize=(10, 6), alpha=0.7)
+    #
+    # # Format x-axis to show every day, as "May 01"
+    # ax.xaxis.set_major_locator(mdates.DayLocator())  # Tick every day
+    # ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))  # Format like 'May 01'
+    #
+    # # Rotate date labels
     # plt.xticks(rotation=45)
-    # plt.legend(title="Table")
+    #
+    # # Dynamic title: show the month and year of the first date in your data
+    # start_date = pivot.index.min()
+    # plt.title(f"Attack Types – {start_date.strftime('%B %Y')}")
+    #
+    # # Labels and layout
+    # plt.xlabel("Date")
+    # plt.ylabel("Number of Attacks")
+    # plt.grid(True)
     # plt.tight_layout()
     # plt.show()
 
-    query = """
-    SELECT date, attack_type, amount
-    FROM attack_dis_over_time
-    """
-    df = pd.read_sql_query(query, conn)
-    df['date'] = pd.to_datetime(df['date'])
-
-    # Pivot data
-    pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
-
-    # Plot
-    ax = pivot.plot.area(figsize=(10, 6), alpha=0.7)
-
-    # Format x-axis to show every day, as "May 01"
-    ax.xaxis.set_major_locator(mdates.DayLocator())  # Tick every day
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))  # Format like 'May 01'
-
-    # Rotate date labels
-    plt.xticks(rotation=45)
-
-    # Dynamic title: show the month and year of the first date in your data
-    start_date = pivot.index.min()
-    plt.title(f"Attack Types – {start_date.strftime('%B %Y')}")
-
-    # Labels and layout
-    plt.xlabel("Date")
-    plt.ylabel("Number of Attacks")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-    # Close the connection
-    conn.commit()
-    curr.close()
-    conn.close()
+    # # Close the connection
+    # curr.close()
+    # conn.close()
 
 
 # Helper functions for the last 3 graphs
@@ -344,6 +366,7 @@ def attacks_analysis():
                        r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
     # Data structure for the database hit barchart
+    global database_hits
     database_hits = {
         "accounts": {
             "id": 0,
