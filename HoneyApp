@@ -1,0 +1,73 @@
+import tkinter as tk
+from tkinter import ttk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
+
+
+# Sample chart creation
+def create_sample_chart(title):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([1, 2, 3], [4, 5, 6])
+    ax.set_title(title)
+    return fig
+
+
+# App class with dynamic content switching
+class HoneypotApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Honeypot App")
+        self.attributes('-fullscreen', True)
+        self.bind("<Escape>", lambda e: self.attributes('-fullscreen', False))
+
+        self.protocol("WM_DELETE_WINDOW", self.on_exit)  # ✅ Handle window close
+
+        self.container = tk.Frame(self)
+        self.container.pack(fill="both", expand=True)
+
+        self.show_welcome_screen()
+
+    def on_exit(self):
+        plt.close('all')  # ✅ Close all matplotlib windows
+        self.destroy()  # ✅ Properly close the Tkinter window
+        exit()  # ✅ Fully exit the script (optional but safe)
+    def clear_container(self):
+        for widget in self.container.winfo_children():
+            widget.destroy()
+
+    def show_welcome_screen(self):
+        self.clear_container()
+        label = ttk.Label(self.container, text="Welcome to the Honeypot Project", font=("Arial", 24))
+        label.pack(pady=60)
+
+        start_btn = ttk.Button(self.container, text="Enter Dashboard", command=self.show_dashboard)
+        start_btn.pack(pady=20)
+
+    def show_dashboard(self):
+        self.clear_container()
+
+        # Title and stats
+        ttk.Label(self.container, text="📊 Honeypot Dashboard", font=("Arial", 20)).grid(row=0, column=0, columnspan=3,
+                                                                                        pady=(10, 0))
+        stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
+        ttk.Label(self.container, text=stats, font=("Arial", 12)).grid(row=1, column=0, columnspan=3, pady=(0, 20))
+
+        # First row: 2 charts
+        for i in range(2):
+            fig = create_sample_chart(f"Chart {i + 1}")
+            canvas = FigureCanvasTkAgg(fig, master=self.container)
+            canvas.draw()
+            canvas.get_tk_widget().grid(row=2, column=i, padx=10, pady=10)
+
+        # Second row: 3 charts
+        for i in range(3):
+            fig = create_sample_chart(f"Chart {i + 3}")
+            canvas = FigureCanvasTkAgg(fig, master=self.container)
+            canvas.draw()
+            canvas.get_tk_widget().grid(row=3, column=i, padx=10, pady=10)
+
+
+# Run the app
+if __name__ == "__main__":
+    app = HoneypotApp()
+    app.mainloop()
