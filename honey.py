@@ -7,6 +7,7 @@ import re
 import datetime
 from collections import defaultdict, deque
 from datetime import datetime
+import matplotlib.dates as mdates
 import seaborn as sns
 
 TIME_WINDOW_SECONDS = 10
@@ -44,12 +45,6 @@ def interactions_over_time(gs):
         # Query the data
         query = "SELECT time, num_interactions FROM interaction_over_time"
         df = pd.read_sql_query(query, conn)
-
-        # Convert 'time' column to datetime
-        df['time'] = pd.to_datetime(df['time'])
-
-        # Add this line here to extract just MM-DD for the x-axis labels
-        df['date_label'] = df['time'].dt.strftime('%m-%d')
 
         # Now plot using the simplified label
         plt.figure(figsize=(10, 6))
@@ -163,7 +158,7 @@ def attack_types():
                     "'; INSERT INTO users (username) VALUES ('evil')--", "' OR '1'='1' --", "' OR '1'='1' /* ",
                     "' UNION SELECT number, cvv FROM credit_cards--", "' UNION SELECT card_number, cvv FROM payments--",
                     "' UNION SELECT address FROM orders--"]
-    sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1"]
+    sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1", "1==1"]
 
     sql_rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select", r"(?i)drop\s+table",
                        r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
@@ -233,16 +228,16 @@ def attack_types():
                     # Attack distribution over time
                     curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
                                  "AND attack_type = 'SQL Injection'",
-                                 (log["timestamp"][:9],))
+                                 (log["timestamp"][:10],))
                     amount_this_date = curr.fetchone()
                     if amount_this_date:
                         curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                     (log["timestamp"][:9], amount_this_date[0]+1, "SQL Injection"))
+                                     (log["timestamp"][:10], amount_this_date[0]+1, "SQL Injection"))
                     else:
                         curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                     (log["timestamp"][:9], 1, "SQL Injection"))
+                                     (log["timestamp"][:10], 1, "SQL Injection"))
 
-                curr.commit()
+                conn.commit()
 
                 # XSS
                 if payload_detector(xss_payloads, xss_rg_patterns, payload):
@@ -261,16 +256,16 @@ def attack_types():
                     # Attack distribution over time
                     curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
                                  "AND attack_type = 'XSS'",
-                                 (log["timestamp"][:9],))
+                                 (log["timestamp"][:10],))
                     amount_this_date = curr.fetchone()
                     if amount_this_date:
                         curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                     (log["timestamp"][:9], amount_this_date[0]+1, "XSS"))
+                                     (log["timestamp"][:10], amount_this_date[0]+1, "XSS"))
                     else:
                         curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                     (log["timestamp"][:9], 1, "XSS"))
+                                     (log["timestamp"][:10], 1, "XSS"))
 
-    curr.commit()
+    conn.commit()
     # Brute Force
     brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser", "manager",
                              "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
@@ -319,50 +314,50 @@ def attack_types():
                      (attack["start_time"][:9],))
         amount_this_date = curr.fetchone()
         if amount_this_date:
-            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
                          (attack["start_time"][:9], amount_this_date[0] + 1, "Brute Force"))
         else:
-            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
                          (log["start_time"][:9], 1, "Brute Force"))
 
     curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
     num_brute_force = curr.fetchone()
     if num_brute_force:
-        curr.execte("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?", (num_brute_force[0] + len(attacks),
+        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?", (num_brute_force[0] + len(attacks),
                                                                                  'Brute Force'))
     else:
         curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', len(attacks)))
 
-    # Creating the graph - a pie chart
-    # Fetch the data
-    curr.execute("SELECT a_type, num_attacks FROM attack_types")
-    data = curr.fetchall()
+    # # Creating the graph - a pie chart
+    # # Fetch the data
+    # curr.execute("SELECT a_type, num_attacks FROM attack_types")
+    # data = curr.fetchall()
+    #
+    # # Separate the data into labels and sizes
+    # labels = [row[0] for row in data]
+    # sizes = [row[1] for row in data]
+    #
+    # # Create the pie chart
+    # plt.figure(figsize=(7, 7))
+    # plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    # plt.title("Attack Types")
+    # plt.axis('equal')
+    # plt.tight_layout()
+    # plt.show()
 
-    # Separate the data into labels and sizes
-    labels = [row[0] for row in data]
-    sizes = [row[1] for row in data]
-
-    # Create the pie chart
-    plt.figure(figsize=(7, 7))
-    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-    plt.title("Distribution of Things")
-    plt.axis('equal')
-    plt.tight_layout()
-    plt.show()
-
-    # Prepare data for bar plot
-    bar_data = []
-
-    for table, columns in database_hits.items():
-        for column, count in columns.items():
-            bar_data.append({
-                "Table": table,
-                "Column": column,
-                "Count": count
-            })
-
-    bar_df = pd.DataFrame(bar_data)
-
+    # # Prepare data for bar plot
+    # bar_data = []
+    #
+    # for table, columns in database_hits.items():
+    #     for column, count in columns.items():
+    #         bar_data.append({
+    #             "Table": table,
+    #             "Column": column,
+    #             "Count": count
+    #         })
+    #
+    # bar_df = pd.DataFrame(bar_data)
+    #
     # Define color palette per table
     palette = {
         "accounts": "#FF9999",
@@ -381,21 +376,36 @@ def attack_types():
     # plt.tight_layout()
     # plt.show()
 
-    # query = """
-    # SELECT date, attack_type, amount
-    # FROM attack_dis_over_time
-    # """
-    # df = pd.read_sql_query(query, conn)
-    # df['date'] = pd.to_datetime(df['date'])
-    #
-    # pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
-    # pivot.plot.area(figsize=(10, 6), alpha=0.7)
-    # plt.title("Attack Types Over Time (Stacked Area)")
-    # plt.xlabel("Date")
-    # plt.ylabel("Number of Attacks")
-    # plt.grid(True)
-    # plt.tight_layout()
-    # plt.show()
+    query = """
+    SELECT date, attack_type, amount
+    FROM attack_dis_over_time
+    """
+    df = pd.read_sql_query(query, conn)
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Pivot data
+    pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
+
+    # Plot
+    ax = pivot.plot.area(figsize=(10, 6), alpha=0.7)
+
+    # Format x-axis to show every day, as "May 01"
+    ax.xaxis.set_major_locator(mdates.DayLocator())  # Tick every day
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))  # Format like 'May 01'
+
+    # Rotate date labels
+    plt.xticks(rotation=45)
+
+    # Dynamic title: show the month and year of the first date in your data
+    start_date = pivot.index.min()
+    plt.title(f"Attack Types – {start_date.strftime('%B %Y')}")
+
+    # Labels and layout
+    plt.xlabel("Date")
+    plt.ylabel("Number of Attacks")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
     # Close the connection
     conn.commit()
     curr.close()
