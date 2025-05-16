@@ -1,0 +1,539 @@
+import tkinter as tk
+from tkinter import ttk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
+import json
+import sqlite3
+import pandas as pd
+import plotly.express as px
+import re
+import datetime
+from collections import defaultdict, deque
+from datetime import datetime
+import matplotlib.dates as mdates
+import seaborn as sns
+from matplotlib.figure import Figure
+
+
+TIME_WINDOW_SECONDS = 10
+MIN_REQUESTS_IN_WINDOW = 8
+
+
+class HoneypotApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Honeypot App")
+        self.attributes('-fullscreen', True)
+        self.bind("<Escape>", lambda e: self.attributes('-fullscreen', False))
+
+        self.protocol("WM_DELETE_WINDOW", self.on_exit)
+
+        self.container = tk.Frame(self)
+        self.container.pack(fill="both", expand=True)
+
+        self.show_welcome_screen()
+
+    # Closing function after the user clicks on the x
+    def on_exit(self):
+        plt.close('all')
+        self.destroy()
+        exit()
+
+    # A function responsible for clearing the screen from widgets
+    def clear_container(self):
+        for widget in self.container.winfo_children():
+            widget.destroy()
+
+    # Welcome Screen
+    def show_welcome_screen(self):
+        self.clear_container()
+        label = ttk.Label(self.container, text="Welcome to the Honeypot Project", font=("Arial", 42))
+        label.pack(pady=60)
+
+        start_btn = ttk.Button(self.container, text="Enter Dashboard", command=self.show_dashboard)
+        start_btn.pack(pady=20)
+
+    # Dashboard
+    def show_dashboard(self):
+        self.clear_container()
+
+        # Title and stats
+        ttk.Label(self.container, text="Honeypot Dashboard", font=("Arial", 40)).grid(row=0, column=0, columnspan=3,
+                                                                                        pady=(10, 0))
+        stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
+        ttk.Label(self.container, text=stats, font=("Arial", 12)).grid(row=1, column=0, columnspan=3, pady=(0, 30))
+
+        # Show the first graph - Interaction Over Time
+        fig1 = interactions_over_time()
+        if fig1:
+            canvas1 = FigureCanvasTkAgg(fig1, master=self.container)
+            canvas1.draw()
+            canvas1.get_tk_widget().grid(row=2, column=0, padx=10, pady=10)
+
+        # Second graph - Error Distribution
+        fig2 = error_types()
+        if fig2:
+            canvas2 = FigureCanvasTkAgg(fig2, master=self.container)
+            canvas2.draw()
+            canvas2.get_tk_widget().grid(row=2, column=2, padx=10, pady=10)
+        # Third graph - Attack Types
+        fig3 = attack_types()
+        if fig3:
+            canvas3 = FigureCanvasTkAgg(fig3, master=self.container)
+            canvas3.draw()
+            canvas3.get_tk_widget().grid(row=4, column=4, padx=10, pady=10)
+
+
+# First graph - Interactions Over Time
+def interactions_over_time():
+    try:
+        # Connecting to the database
+        conn = sqlite3.connect("HoneyStats")
+
+        # Creating a cursor
+        curr = conn.cursor()
+        logs = []
+        with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+            for line in file:
+                if line.strip():  # Skip empty lines
+                    log_entry = json.loads(line)
+                    logs.append(log_entry)
+
+        if logs:
+            for log in logs:
+                curr.execute("SELECT num_interactions FROM interaction_over_time WHERE time = (?)",
+                             (log["timestamp"][:10],))
+                num_inter = curr.fetchone()
+                if num_inter:
+                    updated_num_inter = num_inter[0] + 1
+                    # Add one more interaction for this date
+                    curr.execute("UPDATE interaction_over_time SET num_interactions = ? WHERE time = ?",
+                                 (updated_num_inter, log["timestamp"][:10]))
+                else:
+                    curr.execute("INSERT INTO interaction_over_time VALUES(?, ?)",
+                                  (log["timestamp"][:10], 1))
+
+        # Query the data
+        query = "SELECT time, num_interactions FROM interaction_over_time"
+        df = pd.read_sql_query(query, conn)
+
+        # Creating a figure for the dashboard
+        fig = Figure(figsize=(5, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.plot(df['time'], df['num_interactions'], marker='o', linestyle='-', color='royalblue')
+        ax.set_title("Number of Interactions Over Time")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Interactions")
+        fig.autofmt_xdate()
+        ax.grid(True)
+        return fig
+    except FileNotFoundError:
+        print("File not found: logs/interaction_logs.json")
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    except sqlite3.error as e:
+        print(e)
+    finally:
+        # Committing changes
+        conn.commit()
+
+        # Close cursor
+        curr.close()
+
+        # Close connection
+        conn.close()
+
+
+# Second graph: Error distribution
+def error_types():
+    # Connecting to the database
+    conn = sqlite3.connect("HoneyStats")
+
+    # Creating a cursor
+    curr = conn.cursor()
+    logs = []
+    with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.strip():  # Skip empty lines
+                log_entry = json.loads(line)
+                logs.append(log_entry)
+
+    if logs:
+        for log in logs:
+            curr.execute("SELECT amount FROM error_types WHERE type = (?)",
+                         (log["error_type"],))
+            num_inter = curr.fetchone()
+            if num_inter:
+                updated_num_inter = num_inter[0] + 1
+                # Add one more interaction for this date
+                curr.execute("UPDATE error_types SET amount = ? WHERE type = ?",
+                             (updated_num_inter, log["error_type"]))
+            else:
+                curr.execute("INSERT INTO error_types VALUES(?, ?)",
+                             (log["error_type"], 1))
+
+    # Query the data
+    query = "SELECT type, amount FROM error_types"
+    df = pd.read_sql_query(query, conn)
+
+    # Create a Matplotlib figure
+    fig = Figure(figsize=(6, 4), dpi=100)
+    ax = fig.add_subplot(111)
+
+    # Horizontal bar chart
+    ax.barh(df['type'], df['amount'], color='skyblue')
+    ax.set_title('Error distribution')
+    ax.set_xlabel('Occurrences')
+    ax.set_ylabel('Error Type')
+    ax.invert_yaxis()  # Optional: show most frequent attacks at the top
+    ax.grid(True)
+    fig.tight_layout()  # 👈 Add this before returning
+    return fig
+
+
+# Third graph: Attack Types
+def attack_types():
+    # Connecting to the database
+    conn = sqlite3.connect("HoneyStats")
+
+    # Creating a cursor
+    curr = conn.cursor()
+
+    # Fetch the data
+    curr.execute("SELECT a_type, num_attacks FROM attack_types")
+    data = curr.fetchall()
+
+    # Separate the data into labels and sizes
+    labels = [row[0] for row in data]
+    sizes = [row[1] for row in data]
+    colors = ['lightcoral', 'palegreen', 'gold']
+
+    # Create a Matplotlib figure
+    fig = Figure(figsize=(5, 4), dpi=100)
+    ax = fig.add_subplot(111)
+
+    # Create pie chart
+    wedges, texts, autotexts = ax.pie(
+        sizes,
+        labels=labels,
+        colors=colors,
+        autopct='%1.1f%%',
+        shadow=True,
+        startangle=140
+    )
+
+    ax.set_title('Attack Type Distribution')
+    fig.tight_layout()
+
+    return fig
+
+    # # Prepare data for bar plot
+    # bar_data = []
+    #
+    # for table, columns in database_hits.items():
+    #     for column, count in columns.items():
+    #         bar_data.append({
+    #             "Table": table,
+    #             "Column": column,
+    #             "Count": count
+    #         })
+    #
+    # bar_df = pd.DataFrame(bar_data)
+    #
+    # Define color palette per table
+    palette = {
+        "accounts": "#FF9999",
+        "orders": "#99CCFF",
+        "payments": "#99FF99"
+    }
+
+    # # Plot grouped bar graph
+    # plt.figure(figsize=(12, 6))
+    # sns.barplot(data=bar_df, x="Column", y="Count", hue="Table", palette=palette)
+    # plt.title("Column Access Frequency by Table")
+    # plt.xlabel("Column")
+    # plt.ylabel("Access Count")
+    # plt.xticks(rotation=45)
+    # plt.legend(title="Table")
+    # plt.tight_layout()
+    # plt.show()
+
+    query = """
+    SELECT date, attack_type, amount
+    FROM attack_dis_over_time
+    """
+    df = pd.read_sql_query(query, conn)
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Pivot data
+    pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
+
+    # Plot
+    ax = pivot.plot.area(figsize=(10, 6), alpha=0.7)
+
+    # Format x-axis to show every day, as "May 01"
+    ax.xaxis.set_major_locator(mdates.DayLocator())  # Tick every day
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))  # Format like 'May 01'
+
+    # Rotate date labels
+    plt.xticks(rotation=45)
+
+    # Dynamic title: show the month and year of the first date in your data
+    start_date = pivot.index.min()
+    plt.title(f"Attack Types – {start_date.strftime('%B %Y')}")
+
+    # Labels and layout
+    plt.xlabel("Date")
+    plt.ylabel("Number of Attacks")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # Close the connection
+    conn.commit()
+    curr.close()
+    conn.close()
+
+
+# Helper functions for the last 3 graphs
+def payload_detector(sus_inputs, rg_pattern, input_txt):
+    print(input_txt)
+    for keyword in sus_inputs:
+        if keyword.upper() in input_txt.upper():
+            return True
+    for pattern in rg_pattern:
+        if re.search(pattern, input_txt):
+            return True
+    return False
+
+
+def parse_timestamp(ts):
+    return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+
+
+def attacks_analysis():
+    # Connecting to the database
+    conn = sqlite3.connect("HoneyStats")
+
+    # Creating a cursor
+    curr = conn.cursor()
+
+    # Analysing the payloads
+    # SQL Injection
+    sql_payloads = ["' OR '1'='1", "' OR 1=1--", "' OR '' = '", "' UNION SELECT username, password FROM users--",
+                    "' UNION SELECT username, password FROM accounts--", "' AND 1=CONVERT(int, 'text')--",
+                    "' OR IF(1=1, SLEEP(3), 0)--", "'; DROP TABLE users--", "'; DROP TABLE accounts--",
+                    "'; INSERT INTO users (username) VALUES ('evil')--", "' OR '1'='1' --", "' OR '1'='1' /* ",
+                    "' UNION SELECT number, cvv FROM credit_cards--", "' UNION SELECT card_number, cvv FROM payments--",
+                    "' UNION SELECT address FROM orders--"]
+    sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1", "1==1"]
+
+    sql_rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select", r"(?i)drop\s+table",
+                       r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
+                       r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)", r".*\s*;\s*INSERT\s+INTO"]
+
+    # XSS
+    xss_payloads = ["<script>", "<run>", "</script>", "</run>", "<img", "<style", "<form", "<body", "<input", "alert(",
+                    "prompt(", "confirm(", "eval(", "setTimeout(", "setInterval(", "Function(", "onerror=", "onload=",
+                    "onclick=", "onmouseover=", "onfocus=", "onblur=", "onsubmit=", "onkeydown=", "onmousemove=",
+                    "onmouseout=", "onkeypress="]
+
+    xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=", r"<\s*img[^>]*>",
+                       r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
+
+    # Data structure for the database hit barchart
+    database_hits = {
+        "accounts": {
+            "id": 0,
+            "username": 0,
+            "password": 0,
+            "full_name": 0,
+            "security_level": 0
+        },
+        "orders": {
+            "order_id": 0,
+            "customer_name": 0,
+            "address": 0,
+            "order_details": 0,
+            "payment_status": 0
+        },
+        "payments": {
+            "payment_id": 0,
+            "order_id": 0,
+            "card_number": 0,
+            "expiry_date": 0,
+            "cvv": 0,
+            "amount": 0,
+            "status": 0
+        }
+    }
+
+    interaction_logs = []
+    with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.strip():  # Skip empty lines
+                log_entry = json.loads(line)
+                interaction_logs.append(log_entry)
+
+    if interaction_logs:
+        for log in interaction_logs:
+            for payload in log["payload"]:
+                print(type(payload))
+                # SQL Injection
+                if payload_detector(sql_trigger_words, sql_rg_patterns, payload):
+                    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'SQL Injection'")
+                    num_attacks = curr.fetchone()
+                    if num_attacks:
+                        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'SQL Injection'",
+                                     (num_attacks[0]+1,))
+                    else:
+                        curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
+
+                    # Database hits
+                    for column in log["resource_accessed"][1]:
+                        database_hits[log["resource_accessed"][0]][column] += 1
+
+                    # Attack distribution over time
+                    curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                                 "AND attack_type = 'SQL Injection'",
+                                 (log["timestamp"][:10],))
+                    amount_this_date = curr.fetchone()
+                    if amount_this_date:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:10], amount_this_date[0]+1, "SQL Injection"))
+                    else:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:10], 1, "SQL Injection"))
+
+                conn.commit()
+
+                # XSS
+                if payload_detector(xss_payloads, xss_rg_patterns, payload):
+                    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'XSS'")
+                    num_attacks = curr.fetchone()
+                    if num_attacks:
+                        updated_num_attacks = num_attacks[0] + 1
+                        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'XSS'",
+                                     (updated_num_attacks,))
+                    else:
+                        curr.execute("INSERT INTO attack_types VALUES(?,?)", ("XSS", 1))
+
+                    for column in log["resource_accessed"][1]:
+                        database_hits[log["resource_accessed"][0]][column] += 1
+
+                    # Attack distribution over time
+                    curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                                 "AND attack_type = 'XSS'",
+                                 (log["timestamp"][:10],))
+                    amount_this_date = curr.fetchone()
+                    if amount_this_date:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:10], amount_this_date[0]+1, "XSS"))
+                    else:
+                        curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                     (log["timestamp"][:10], 1, "XSS"))
+
+    conn.commit()
+    # Brute Force
+    brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser", "manager",
+                             "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
+                             "admin123"]
+    brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein"]
+
+    connection_logs = []
+    with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.strip():  # Skip empty lines
+                log_entry = json.loads(line)
+                connection_logs.append(log_entry)
+
+    ip_windows = defaultdict(deque)
+    attacks = []
+
+    for entry in connection_logs:
+        ip = entry["source_ip"]
+        timestamp = parse_timestamp(entry["timestamp"])
+
+        # Add the current timestamp to the IP's deque
+        ip_windows[ip].append(timestamp)
+
+        # Remove timestamps outside the sliding window
+        while (ip_windows[ip] and
+               (timestamp - ip_windows[ip][0]).total_seconds() > TIME_WINDOW_SECONDS):
+            ip_windows[ip].popleft()
+
+        # If enough requests are in the window, log the brute-force attempt
+        if len(ip_windows[ip]) >= MIN_REQUESTS_IN_WINDOW:
+            attacks.append({
+                "source_ip": ip,
+                "start_time": ip_windows[ip][0].strftime("%Y-%m-%d %H:%M:%S"),
+                "end_time": ip_windows[ip][-1].strftime("%Y-%m-%d %H:%M:%S"),
+                "requests_count": len(ip_windows[ip])
+            })
+            # Optional: clear deque to avoid multiple logs of same burst
+            ip_windows[ip].clear()
+
+    # Result
+    for attack in attacks:
+        print(attack)
+        # Attack distribution over time
+        curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                     "AND attack_type = 'Brute Force'",
+                     (attack["start_time"][:9],))
+        amount_this_date = curr.fetchone()
+        if amount_this_date:
+            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
+                         (attack["start_time"][:9], amount_this_date[0] + 1, "Brute Force"))
+        else:
+            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
+                         (log["start_time"][:9], 1, "Brute Force"))
+
+    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
+    num_brute_force = curr.fetchone()
+    if num_brute_force:
+        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?", (num_brute_force[0] + len(attacks),
+                                                                                 'Brute Force'))
+    else:
+        curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', len(attacks)))
+
+
+    conn.commit()
+    curr.close()
+    conn.close()
+
+
+def establish_database():
+    # Connecting to the database
+    conn = sqlite3.connect("HoneyStats")
+
+    # Creating a cursor
+    curr = conn.cursor()
+
+    # Creating the table for interactions over time
+    curr.execute("CREATE TABLE IF NOT EXISTS interaction_over_time(time text PRIMARY KEY, num_interactions int)")
+
+    # Creating the table for types of errors
+    curr.execute("CREATE TABLE IF NOT EXISTS error_types(type text PRIMARY KEY, amount int)")
+
+    # Creating the table for attack types
+    curr.execute("CREATE TABLE IF NOT EXISTS attack_types(a_type text PRIMARY KEY, num_attacks int)")
+
+    # Creating the table for attack distribution over time
+    curr.execute("CREATE TABLE IF NOT EXISTS attack_dis_over_time(id int PRIMARY KEY, date text, amount int,"
+                 " attack_type text)")
+
+    # Committing changes
+    conn.commit()
+
+    # Close cursor
+    curr.close()
+
+
+# Run the app
+if __name__ == "__main__":
+    establish_database()
+    attacks_analysis()
+    app = HoneypotApp()
+    app.mainloop()
