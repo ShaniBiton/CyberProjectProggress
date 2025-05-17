@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -65,7 +66,7 @@ class MainLauncherPage(tk.Frame):
                   command=self.login).pack(pady=20)
 
         tk.Button(self, text="Go to Simple Form App", font=("Helvetica", 14),
-                  command=lambda: controller.show_frame("SimpleFormPage")).pack(pady=20)
+                  command=self.sign_up).pack(pady=20)
 
     def login(self):
         # Run the socket communication in a background thread
@@ -99,7 +100,7 @@ class LoginPage(tk.Frame):
     def check_login(self):
         username = self.username_entry.get()
         password = self.password_entry.get()
-        threading.Thread(target=self.thread_login,args=(username,password), daemon=True).start()
+        threading.Thread(target=self.thread_login, args=(username,password), daemon=True).start()
 
     def thread_login(self, username, password):
         # Run the socket communication in a background thread
@@ -110,6 +111,7 @@ class LoginPage(tk.Frame):
             self.controller.show_frame("MainMenu")
         else:
             messagebox.showerror("Login Failed", "Invalid username or password.")
+
 
 class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
@@ -126,6 +128,7 @@ class MainMenu(tk.Frame):
         tk.Button(self, text="Back to Launcher", width=25, font=("Helvetica", 14),
                   command=lambda: controller.show_frame("MainLauncherPage")).pack(pady=30)
 
+
 class FormPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -133,7 +136,8 @@ class FormPage(tk.Frame):
         tk.Label(self, text="Form Page", font=("Helvetica", 20)).pack(pady=10)
 
         self.check_vars = []
-        checklist_items = ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5"]
+        checklist_items = ["Pizza Margaritta - 10$", "Pesto Pasta - 12$", "Focaccia - 8$", "Ice Tea - 4$",
+                           "Hot Chocolate - 5$"]
         self.checklist_frame = tk.Frame(self)
         self.checklist_frame.pack(pady=10)
 
@@ -143,28 +147,67 @@ class FormPage(tk.Frame):
             cb.pack(anchor="w")
             self.check_vars.append((item, var))
 
-        tk.Button(self, text="Submit Checklist", font=("Helvetica", 12), command=self.submit_checklist).pack(pady=10)
+        tk.Button(self, text="Submit Order", font=("Helvetica", 12), command=self.submit_order).pack(pady=10)
 
         self.open_forms_frame = tk.Frame(self)
         self.entries = []
-        for _ in range(5):
-            entry = tk.Entry(self.open_forms_frame, font=("Helvetica", 12))
-            entry.pack(pady=2)
-            self.entries.append(entry)
-        self.open_forms_frame.pack(pady=10)
 
-        tk.Button(self, text="Submit Forms", font=("Helvetica", 12), command=self.submit_forms).pack(pady=10)
+        self.entries = {}
+        fields = ["Full Name", "Address", "Card Number", "Expiry Date", "cvv"]
+
+        for field in fields:
+            row = tk.Frame(self)
+            row.pack(pady=5)
+            tk.Label(row, text=field+":", width=10, anchor="e", font=("Helvetica", 12)).pack(side=tk.LEFT)
+            entry = tk.Entry(row, font=("Helvetica", 12), width=30)
+            entry.pack(side=tk.LEFT)
+            self.entries[field] = entry
+
+        tk.Button(self, text="Submit Payment", font=("Helvetica", 12), command=self.submit_payment).pack(pady=10)
 
         tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
                   command=lambda: controller.show_frame("MainMenu")).pack(pady=10)
 
-    def submit_checklist(self):
+    def submit_order(self):
         selected = [item for item, var in self.check_vars if var.get()]
         messagebox.showinfo("Checklist Submitted", f"Selected: {selected}")
+        order_details = ""
+        amount = 0
+        for s in selected:
+            if s == "Pizza Margaritta - 10$":
+                amount += 10
+            elif s == "Pesto Pasta - 12$":
+                amount += 12
+            elif s == "Focaccia - 8$":
+                amount += 8
+            elif s == "Ice Tea - 4$":
+                amount += 4
+            elif s == "Hot Chocolate - 5$":
+                amount += 5
+            order_details += s + ", "
+            print(amount)
 
-    def submit_forms(self):
-        values = [entry.get() for entry in self.entries]
+        threading.Thread(target=self.order_thread, args=(order_details, f"Amount: {amount}"), daemon=True).start()
+
+    def order_thread(self, order_details, amount):
+        ServerHandling.send_message(self.controller.client_socket, order_details)
+        time.sleep(0.5)
+        ServerHandling.send_message(self.controller.client_socket, amount)
+        print("hey")
+
+    def submit_payment(self):
+        values = [entry.get() for entry in self.entries.values()]
         messagebox.showinfo("Form Submitted", f"Values: {values}")
+
+        threading.Thread(target=self.payment_thread, args=(values,), daemon=True).start()
+
+    def payment_thread(self, values):
+        for value in values:
+            ServerHandling.send_message(self.controller.client_socket, value)
+
+
+
+
 
 class TextPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -204,6 +247,7 @@ class ImagePage(tk.Frame):
         tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
                   command=lambda: controller.show_frame("MainMenu")).pack(pady=20)
 
+
 # ---------- Simple Form App ----------
 class SimpleFormPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -228,25 +272,28 @@ class SimpleFormPage(tk.Frame):
                   command=lambda: controller.show_frame("MainLauncherPage")).pack()
 
     def submit_form(self):
-        def submit_form(self):
-            data = {field: entry.get() for field, entry in self.entries.items()}
-            summary = "\n".join([f"{k}: {v}" for k, v in data.items()])
-            messagebox.showinfo("Form Submitted", summary)
+        data = {field: entry.get() for field, entry in self.entries.items()}
+        summary = "\n".join([f"{k}: {v}" for k, v in data.items()])
+        messagebox.showinfo("Form Submitted", summary)
 
-            client_socket = self.controller.client_socket
-            if client_socket:
-                try:
-                    message = json.dumps(data)
-                    ServerHandling.send_message(client_socket, data["ID"])
-                    ServerHandling.send_message(client_socket, data["Full Name"])
-                    ServerHandling.send_message(client_socket, data["Username"])
-                    ServerHandling.send_message(client_socket, data["Password"])
-                    response = ServerHandling.receive_message(client_socket)
-                    print("Server response:", response)
-                except socket.error as e:
-                    messagebox.showerror("Socket Error", f"Failed to send to server: {e}")
-            else:
-                messagebox.showerror("Connection Error", "Socket connection not available.")
+        threading.Thread(target=self.form_thread, args=(data,), daemon=True).start()
+
+    def form_thread(self, data):
+        client_socket = self.controller.client_socket
+        if client_socket:
+            try:
+                ServerHandling.send_message(client_socket, data["ID"])
+                ServerHandling.send_message(client_socket, data["Full Name"])
+                ServerHandling.send_message(client_socket, data["Username"])
+                ServerHandling.send_message(client_socket, data["Password"])
+                response = ServerHandling.receive_message(client_socket)
+                print("Server response:", response)
+                if response == "Sign Up successful":
+                    self.controller.show_frame("MainMenu")
+            except socket.error as e:
+                messagebox.showerror("Socket Error", f"Failed to send to server: {e}")
+        else:
+            messagebox.showerror("Connection Error", "Socket connection not available.")
 
 
 class ServerHandling:
@@ -297,6 +344,7 @@ class ServerHandling:
             print(f"Unexpected Error: {e}")
             client_socket.close()
             return
+
 
 if __name__ == "__main__":
     app = MainApp()
