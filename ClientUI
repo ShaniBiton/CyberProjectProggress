@@ -1,0 +1,283 @@
+import tkinter as tk
+from tkinter import messagebox
+from PIL import Image, ImageTk
+from PIL import Image
+import socket
+import json
+
+# Dummy credentials
+VALID_USERNAME = "admin"
+VALID_PASSWORD = "password123"
+
+HOST = '127.0.0.1'  # localhost
+PORT = 1729
+ADDR = (HOST, PORT)
+
+NUM_DIGITS_LENGTH_FIELD = 2
+REQUEST_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
+MAX_REQUEST_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
+
+
+class MainApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Main Launcher")
+        self.geometry("600x500")
+
+        # Create the socket once, keep it for the app's lifetime
+        try:
+            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client_socket.connect(ADDR)  # Replace with your server
+        except socket.error as e:
+            messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
+            self.client_socket = None
+
+        self.container = tk.Frame(self)
+        self.container.pack(fill="both", expand=True)
+
+        self.frames = {}
+        for F in (
+            MainLauncherPage,
+            LoginPage, MainMenu, FormPage, TextPage, ImagePage,
+            SimpleFormPage
+        ):
+            page_name = F.__name__
+            frame = F(parent=self, controller=self)
+            self.frames[page_name] = frame
+            frame.place(relwidth=1, relheight=1)
+
+        self.show_frame("MainLauncherPage")
+
+    def show_frame(self, page_name):
+        self.frames[page_name].tkraise()
+
+# ---------- Launcher Page ----------
+class MainLauncherPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="Welcome to the App Launcher!", font=("Helvetica", 20)).pack(pady=40)
+
+        tk.Button(self, text="Go to Login + 4-Page App", font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("LoginPage")).pack(pady=20)
+
+        tk.Button(self, text="Go to Simple Form App", font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("SimpleFormPage")).pack(pady=20)
+
+# ---------- Login + 4-Page App ----------
+class LoginPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="Login", font=("Helvetica", 24)).pack(pady=30)
+
+        tk.Label(self, text="Username:", font=("Helvetica", 14)).pack()
+        self.username_entry = tk.Entry(self, font=("Helvetica", 14))
+        self.username_entry.pack(pady=5)
+
+        tk.Label(self, text="Password:", font=("Helvetica", 14)).pack()
+        self.password_entry = tk.Entry(self, font=("Helvetica", 14), show="*")
+        self.password_entry.pack(pady=5)
+
+        tk.Button(self, text="Login", font=("Helvetica", 14), command=self.check_login).pack(pady=20)
+
+    def check_login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+        if username == VALID_USERNAME and password == VALID_PASSWORD:
+            self.controller.show_frame("MainMenu")
+        else:
+            messagebox.showerror("Login Failed", "Invalid username or password.")
+
+class MainMenu(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Main Menu", font=("Helvetica", 20)).pack(pady=30)
+
+        tk.Button(self, text="Go to Form Page", width=25, font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("FormPage")).pack(pady=10)
+        tk.Button(self, text="Go to Text Page", width=25, font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("TextPage")).pack(pady=10)
+        tk.Button(self, text="Go to Image Page", width=25, font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("ImagePage")).pack(pady=10)
+        tk.Button(self, text="Back to Launcher", width=25, font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("MainLauncherPage")).pack(pady=30)
+
+class FormPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Form Page", font=("Helvetica", 20)).pack(pady=10)
+
+        self.check_vars = []
+        checklist_items = ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5"]
+        self.checklist_frame = tk.Frame(self)
+        self.checklist_frame.pack(pady=10)
+
+        for item in checklist_items:
+            var = tk.BooleanVar()
+            cb = tk.Checkbutton(self.checklist_frame, text=item, variable=var, font=("Helvetica", 12))
+            cb.pack(anchor="w")
+            self.check_vars.append((item, var))
+
+        tk.Button(self, text="Submit Checklist", font=("Helvetica", 12), command=self.submit_checklist).pack(pady=10)
+
+        self.open_forms_frame = tk.Frame(self)
+        self.entries = []
+        for _ in range(5):
+            entry = tk.Entry(self.open_forms_frame, font=("Helvetica", 12))
+            entry.pack(pady=2)
+            self.entries.append(entry)
+        self.open_forms_frame.pack(pady=10)
+
+        tk.Button(self, text="Submit Forms", font=("Helvetica", 12), command=self.submit_forms).pack(pady=10)
+
+        tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainMenu")).pack(pady=10)
+
+    def submit_checklist(self):
+        selected = [item for item, var in self.check_vars if var.get()]
+        messagebox.showinfo("Checklist Submitted", f"Selected: {selected}")
+
+    def submit_forms(self):
+        values = [entry.get() for entry in self.entries]
+        messagebox.showinfo("Form Submitted", f"Values: {values}")
+
+class TextPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Text Page", font=("Helvetica", 20)).pack(pady=10)
+
+        texts = [
+            "Welcome to the Text Page.",
+            "This app demonstrates multi-page layout.",
+            "Each section can be customized.",
+            "Tkinter is great for desktop apps!"
+        ]
+        for text in texts:
+            tk.Label(self, text=text, font=("Helvetica", 14)).pack(pady=5)
+
+        tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainMenu")).pack(pady=20)
+
+class ImagePage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Image Page", font=("Helvetica", 20)).pack(pady=10)
+
+        self.image_frame = tk.Frame(self)
+        self.image_frame.pack()
+
+        self.images = []
+        for i in range(7):
+            img = Image.new("RGB", (60, 60), color=(100+i*20, 100, 200))
+            img_tk = ImageTk.PhotoImage(img)
+            self.images.append(img_tk)
+            label = tk.Label(self.image_frame, image=img_tk)
+            label.grid(row=i//4, column=i%4, padx=5, pady=5)
+
+        tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainMenu")).pack(pady=20)
+
+# ---------- Simple Form App ----------
+class SimpleFormPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="Simple Form", font=("Helvetica", 20)).pack(pady=20)
+
+        self.entries = {}
+        fields = ["ID", "Full Name", "Username", "Password"]
+
+        for field in fields:
+            row = tk.Frame(self)
+            row.pack(pady=5)
+            tk.Label(row, text=field+":", width=10, anchor="e", font=("Helvetica", 12)).pack(side=tk.LEFT)
+            entry = tk.Entry(row, font=("Helvetica", 12), width=30)
+            entry.pack(side=tk.LEFT)
+            self.entries[field] = entry
+
+        tk.Button(self, text="Submit", font=("Helvetica", 12), command=self.submit_form).pack(pady=20)
+        tk.Button(self, text="Back to Launcher", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainLauncherPage")).pack()
+
+    def submit_form(self):
+        def submit_form(self):
+            data = {field: entry.get() for field, entry in self.entries.items()}
+            summary = "\n".join([f"{k}: {v}" for k, v in data.items()])
+            messagebox.showinfo("Form Submitted", summary)
+
+            client_socket = self.controller.client_socket
+            if client_socket:
+                try:
+                    message = json.dumps(data)
+                    ServerHandling.send_message(client_socket, data["ID"])
+                    ServerHandling.send_message(client_socket, data["Full Name"])
+                    ServerHandling.send_message(client_socket, data["Username"])
+                    ServerHandling.send_message(client_socket, data["Password"])
+                    response = ServerHandling.receive_message(client_socket)
+                    print("Server response:", response)
+                except socket.error as e:
+                    messagebox.showerror("Socket Error", f"Failed to send to server: {e}")
+            else:
+                messagebox.showerror("Connection Error", "Socket connection not available.")
+
+
+class ServerHandling:
+    @staticmethod
+    def send_message(client_socket, request):
+        try:
+            request_length = len(request)
+            if not (request_length > MAX_REQUEST_MESSAGE_LENGTH):
+                request_length_field = REQUEST_LENGTH_FIELD_FORMAT % request_length
+                request_data = request_length_field + request
+                client_socket.send(request_data.encode())
+                # print("message sent successfully!")
+        except socket.error as e:
+            print(e)
+            client_socket.close()
+            return
+        except KeyboardInterrupt:
+            print("Keyboard interrupt - stopping")
+            return
+        except Exception as e:
+            print(e)
+            return
+
+    @staticmethod
+    def receive_message(client_socket):
+        try:
+            request_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+            if not request_length_field:  # Client disconnected cleanly
+                raise ConnectionResetError("Client disconnected unexpectedly")
+
+            request_length = int(request_length_field)
+
+            request = client_socket.recv(request_length).decode()
+
+            if not request:  # Client disconnected during message
+                raise ConnectionResetError("Client disconnected unexpectedly")
+
+            return request
+
+        except (socket.error, ValueError, ConnectionResetError) as e:
+            print(f"{type(e).__name__}: {e}")
+            client_socket.close()
+            raise  # CRUCIAL: re-raising the error so login() can exit cleanly
+        except KeyboardInterrupt:
+            print("Keyboard interrupt - stopping")
+        except Exception as e:
+            print(f"Unexpected Error: {e}")
+            client_socket.close()
+            return
+
+if __name__ == "__main__":
+    app = MainApp()
+    app.mainloop()
