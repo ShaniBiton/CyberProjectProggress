@@ -4,6 +4,7 @@ from PIL import Image, ImageTk
 from PIL import Image
 import socket
 import json
+import threading
 
 # Dummy credentials
 VALID_USERNAME = "admin"
@@ -51,6 +52,7 @@ class MainApp(tk.Tk):
     def show_frame(self, page_name):
         self.frames[page_name].tkraise()
 
+
 # ---------- Launcher Page ----------
 class MainLauncherPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -60,10 +62,21 @@ class MainLauncherPage(tk.Frame):
         tk.Label(self, text="Welcome to the App Launcher!", font=("Helvetica", 20)).pack(pady=40)
 
         tk.Button(self, text="Go to Login + 4-Page App", font=("Helvetica", 14),
-                  command=lambda: controller.show_frame("LoginPage")).pack(pady=20)
+                  command=self.login).pack(pady=20)
 
         tk.Button(self, text="Go to Simple Form App", font=("Helvetica", 14),
                   command=lambda: controller.show_frame("SimpleFormPage")).pack(pady=20)
+
+    def login(self):
+        # Run the socket communication in a background thread
+        threading.Thread(target=ServerHandling.send_message, args=(self.controller.client_socket, "login"),
+                         daemon=True).start()
+        self.controller.show_frame("LoginPage")
+
+    def sign_up(self):
+        ServerHandling.send_message(self.controller.client_socket, "sign up")
+        self.controller.show_frame("SimpleFormPage")
+
 
 # ---------- Login + 4-Page App ----------
 class LoginPage(tk.Frame):
@@ -86,7 +99,14 @@ class LoginPage(tk.Frame):
     def check_login(self):
         username = self.username_entry.get()
         password = self.password_entry.get()
-        if username == VALID_USERNAME and password == VALID_PASSWORD:
+        threading.Thread(target=self.thread_login,args=(username,password), daemon=True).start()
+
+    def thread_login(self, username, password):
+        # Run the socket communication in a background thread
+        ServerHandling.send_message(self.controller.client_socket, username)
+        ServerHandling.send_message(self.controller.client_socket, password)
+        server_verification = ServerHandling.receive_message(self.controller.client_socket)
+        if server_verification == "Login Successful":
             self.controller.show_frame("MainMenu")
         else:
             messagebox.showerror("Login Failed", "Invalid username or password.")
