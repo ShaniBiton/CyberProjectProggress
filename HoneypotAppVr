@@ -32,6 +32,9 @@ class HoneypotApp(tk.Tk):
 
         self.container = tk.Frame(self, bg='#f7f3ee')
         self.container.pack(fill="both", expand=True)
+        self.container.grid_columnconfigure(0, weight=1)  # Left spacer
+        self.container.grid_columnconfigure(1, weight=0)  # Frame
+        self.container.grid_columnconfigure(2, weight=1)  # Right spacer
 
         self.show_welcome_screen()
 
@@ -65,12 +68,6 @@ class HoneypotApp(tk.Tk):
         stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
         ttk.Label(self.container, text=stats, font=("Arial", 12)).grid(row=1, column=0, columnspan=3, pady=(0, 30))
 
-        # Third graph - Attack Types
-        fig3 = attack_types()
-        if fig3:
-            canvas3 = FigureCanvasTkAgg(fig3, master=self.container)
-            canvas3.draw()
-            canvas3.get_tk_widget().grid(row=3, column=4, padx=10, pady=10)
         # Forth graph - Database Hits
         fig4 = database_hitss()
         if fig4:
@@ -87,23 +84,28 @@ class HoneypotApp(tk.Tk):
         # Create a frame to hold the top two graphs
         top_frame = tk.Frame(self.container)
         top_frame.configure(bg='#f7f3ee')
-        top_frame.grid(row=1, column=0, columnspan=3, pady=10)
+        top_frame.grid(row=1, column=1, columnspan=4, pady=10)
 
         # Show the first graph inside top_frame
         fig1 = interactions_over_time()
         if fig1:
             canvas1 = FigureCanvasTkAgg(fig1, master=top_frame)
             canvas1.draw()
-            canvas1.get_tk_widget().grid(row=0, column=0, padx=20)
+            canvas1.get_tk_widget().grid(row=0, column=1, padx=20)
 
         # Show the second graph inside top_frame
         fig2 = error_types()
         if fig2:
             canvas2 = FigureCanvasTkAgg(fig2, master=top_frame)
             canvas2.draw()
-            canvas2.get_tk_widget().grid(row=0, column=1, padx=20)
-        # Graph 3 (bottom-left)
-        canvas3.get_tk_widget().grid(row=2, column=0, padx=10, pady=10)
+            canvas2.get_tk_widget().grid(row=0, column=0, padx=20)
+
+        # Third graph - Attack Types
+        fig3 = attack_types()
+        if fig3:
+            canvas3 = FigureCanvasTkAgg(fig3, master=top_frame)
+            canvas3.draw()
+            canvas3.get_tk_widget().grid(row=0, column=2, padx=10, pady=10)
 
         # Graph 4 (bottom-middle)
         canvas4.get_tk_widget().grid(row=2, column=1, padx=10, pady=10)
@@ -146,7 +148,7 @@ def interactions_over_time():
         df = pd.read_sql_query(query, conn)
 
         # Creating a figure for the dashboard
-        fig = Figure(figsize=(4, 4), dpi=100)
+        fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot(111)
         ax.plot(df['time'], df['num_interactions'], marker='o', linestyle='-', color='royalblue')
         ax.set_title("Number of Interactions Over Time")
@@ -154,8 +156,8 @@ def interactions_over_time():
         ax.set_ylabel("Interactions")
         fig.autofmt_xdate()
         ax.grid(True)
-        fig.patch.set_facecolor('white')  # Figure background
-        ax.set_facecolor('white')  # Plot area background
+        fig.patch.set_facecolor('#f7f3ee')  # Figure background
+        ax.set_facecolor('#f7f3ee')  # Plot area background
         fig.tight_layout()
         return fig
     except FileNotFoundError:
@@ -220,8 +222,8 @@ def error_types():
     ax.set_ylabel('Error Type')
     ax.invert_yaxis()
     ax.grid(True)
-    fig.patch.set_facecolor('white')  # Figure background
-    ax.set_facecolor('white')  # Plot area background
+    fig.patch.set_facecolor('#f7f3ee')  # Figure background
+    ax.set_facecolor('#f7f3ee')  # Plot area background
     fig.tight_layout()
     return fig
 
@@ -290,7 +292,7 @@ def database_hitss():
     }
 
     # Create a Matplotlib figure
-    fig = Figure(figsize=(8, 4), dpi=100)
+    fig = Figure(figsize=(9, 4), dpi=100)
     ax = fig.add_subplot(111)
 
     # Assign colors to each bar based on the table name
@@ -306,8 +308,8 @@ def database_hitss():
     ax.tick_params(axis='x', rotation=30)
     ax.grid(axis='y')
 
-    fig.patch.set_facecolor('white')  # Figure background
-    ax.set_facecolor('white')  # Plot area background
+    fig.patch.set_facecolor('#f7f3ee')  # Figure background
+    ax.set_facecolor('#f7f3ee')  # Plot area background
     fig.tight_layout()
     return fig
 
@@ -356,8 +358,8 @@ def attack_dis_over_time():
     ax.legend(loc="upper left")
     ax.grid(True)
 
-    fig.patch.set_facecolor('white')  # Figure background
-    ax.set_facecolor('white')  # Plot area background
+    fig.patch.set_facecolor('#f7f3ee')  # Figure background
+    ax.set_facecolor('#f7f3ee')  # Plot area background
     fig.tight_layout()
     return fig
 
