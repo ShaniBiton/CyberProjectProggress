@@ -63,28 +63,28 @@ class HoneypotApp(tk.Tk):
         self.clear_container()
 
         # Title and stats
-        ttk.Label(self.container, text="Honeypot Dashboard", font=("Arial", 40)).grid(row=0, column=0, columnspan=3,
-                                                                                        pady=(10, 0))
+        ttk.Label(self.container, text="Honeypot Dashboard", font=("Arial", 44)).grid(row=0, column=0, columnspan=3,
+                                                                                        pady=(5, 0))
         stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
-        ttk.Label(self.container, text=stats, font=("Arial", 12)).grid(row=1, column=0, columnspan=3, pady=(0, 30))
+        ttk.Label(self.container, text=stats, font=("Arial", 16)).grid(row=1, column=0, columnspan=3, pady=(0, 5))
 
         # Forth graph - Database Hits
         fig4 = database_hitss()
         if fig4:
             canvas4 = FigureCanvasTkAgg(fig4, master=self.container)
             canvas4.draw()
-            canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=10)
+            canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
         # Fifth graph - Attack Distribution Over Time
         fig5 = attack_dis_over_time()
         if fig5:
             canvas5 = FigureCanvasTkAgg(fig5, master=self.container)
             canvas5.draw()
-            canvas5.get_tk_widget().grid(row=3, column=1, padx=10, pady=10)
+            canvas5.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
 
         # Create a frame to hold the top two graphs
         top_frame = tk.Frame(self.container)
         top_frame.configure(bg='#f7f3ee')
-        top_frame.grid(row=1, column=1, columnspan=4, pady=10)
+        top_frame.grid(row=2, column=1, columnspan=4, pady=0)
 
         # Show the first graph inside top_frame
         fig1 = interactions_over_time()
@@ -105,13 +105,13 @@ class HoneypotApp(tk.Tk):
         if fig3:
             canvas3 = FigureCanvasTkAgg(fig3, master=top_frame)
             canvas3.draw()
-            canvas3.get_tk_widget().grid(row=0, column=2, padx=10, pady=10)
+            canvas3.get_tk_widget().grid(row=0, column=2, padx=3, pady=0)
 
         # Graph 4 (bottom-middle)
-        canvas4.get_tk_widget().grid(row=2, column=1, padx=10, pady=10)
+        canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
 
         # Graph 5 (bottom-right)
-        canvas5.get_tk_widget().grid(row=2, column=2, padx=10, pady=10)
+        canvas5.get_tk_widget().grid(row=3, column=2, padx=10, pady=0)
 
 
 # First graph - Interactions Over Time
