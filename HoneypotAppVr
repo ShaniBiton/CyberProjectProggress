@@ -406,6 +406,70 @@ class Analysis:
         # Close cursor
         curr.close()
 
+    @staticmethod
+    def archive_logs():
+        # Archiving - interaction_logs
+        # Extracting the logs from the file
+        interaction_logs = []
+        with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+            for line in file:
+                if line.strip():
+                    log_entry = json.loads(line)
+                    interaction_logs.append(log_entry)
+
+        # Transferring the data to the Archive
+        file_path = os.path.join(ARCHIVE_DIR, "interaction_logs_archive.json")
+
+        with open(file_path, "a", encoding="utf-8") as file:
+            for log in interaction_logs:
+                json.dump(log, file)
+                file.write("\n")  # One JSON object per line
+
+        # Clearing the logs file
+        with open('logs/interaction_logs.json', 'w') as f:
+            pass
+
+        # Archiving - connection_logs
+        # Extracting the logs from the file
+        interaction_logs = []
+        with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
+            for line in file:
+                if line.strip():
+                    log_entry = json.loads(line)
+                    interaction_logs.append(log_entry)
+
+        # Transferring the data to the Archive
+        file_path = os.path.join(ARCHIVE_DIR, "connection_logs_archive.json")
+
+        with open(file_path, "a", encoding="utf-8") as file:
+            for log in interaction_logs:
+                json.dump(log, file)
+                file.write("\n")  # One JSON object per line
+
+        # Clearing the logs file
+        with open('logs/connection_logs.json', 'w') as f:
+            pass
+
+        # Archiving - error_logs
+        interaction_logs = []
+        with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
+            for line in file:
+                if line.strip():
+                    log_entry = json.loads(line)
+                    interaction_logs.append(log_entry)
+
+        # Transferring the data to the Archive
+        file_path = os.path.join(ARCHIVE_DIR, "error_logs_archive.json")
+
+        with open(file_path, "a", encoding="utf-8") as file:
+            for log in interaction_logs:
+                json.dump(log, file)
+                file.write("\n")  # One JSON object per line
+
+        # Clearing the logs file
+        with open('logs/error_logs.json', 'w') as f:
+            pass
+
 
 class GraphsCharts:
     @staticmethod
@@ -633,6 +697,9 @@ if __name__ == "__main__":
     Analysis.interactions_analysis()
     Analysis.error_analysis()
     Analysis.attack_analysis()
+
+    # Archiving logs after analysis
+    Analysis.archive_logs()
 
     # Running the app
     app = HoneypotApp()
