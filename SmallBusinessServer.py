@@ -601,9 +601,6 @@ def sign_up(client_socket, addr):
 
 def client_entrance(client_socket, addr):
     try:
-        # Login or sign up
-        send_message(client_socket, "Press 'L' for Login or 'S' for Sign Up: ", addr)
-
         # Receive answer
         login_or_signup = receive_message(client_socket, addr)
 
