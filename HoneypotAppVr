@@ -315,7 +315,6 @@ class Analysis:
 
         conn.commit()
         # Brute Force
-        brute_force_new_attacks = 0
         brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser",
                                  "manager",
                                  "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
@@ -370,14 +369,6 @@ class Analysis:
                 curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
                              (log["start_time"][:9], 1, "Brute Force"))
 
-        curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
-        num_brute_force = curr.fetchone()
-        if num_brute_force:
-            curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?", (num_brute_force[0] + len(attacks),
-                                                                                      'Brute Force'))
-        else:
-            curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', len(attacks)))
-        print(attacks)
         more_catches = []
         for log in connection_logs:
             print(log["username"])
@@ -390,29 +381,26 @@ class Analysis:
                             more_catches.append((log["source_ip"], log["timestamp"]))
                 else:
                     more_catches.append((log["source_ip"], log["timestamp"]))
-        print(more_catches)
+        num_more_catches = 0
         if more_catches:
-            curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
-            num_brute_force = curr.fetchone()
-            if num_brute_force:
-                curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
-                             (num_brute_force[0] + 1,
-                              'Brute Force'))
-            else:
-                curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', 1))
+            num_more_catches += 1
             for i in range(1, len(more_catches)):
                 if (HelperFunctions.time_difference(more_catches[i-1][1], more_catches[i-1][1]) <=
                         MAX_TIME_DIFF_BR_ATTACK):
                     pass
                 else:
-                    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
-                    num_brute_force = curr.fetchone()
-                    if num_brute_force:
-                        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
-                                     (num_brute_force[0] + 1,
-                                      'Brute Force'))
-                    else:
-                        curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', 1))
+                    num_more_catches += 1
+
+        curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
+        num_brute_force = curr.fetchone()
+        if num_brute_force:
+            curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
+                         (num_brute_force[0] + len(attacks)+num_more_catches, 'Brute Force'))
+        else:
+            curr.execute("INSERT INTO attack_types VALUES(?, ?)",
+                         ('Brute Force', len(attacks)+num_more_catches))
+        print(attacks)
+        print(more_catches)
 
         conn.commit()
         curr.close()
