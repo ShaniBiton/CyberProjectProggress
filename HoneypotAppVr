@@ -286,9 +286,9 @@ def database_hitss():
 
     # Define color palette per table
     palette = {
-        "accounts": "#FF9999",
-        "orders": "#99CCFF",
-        "payments": "#99FF99"
+        "accounts": "#3e5879",
+        "orders": "#586f82",
+        "payments": "#a6c1ca"
     }
 
     # Create a Matplotlib figure
@@ -347,7 +347,7 @@ def attack_dis_over_time():
         pivot.index,
         [pivot[col] for col in pivot.columns],  # multiple y-series
         labels=pivot.columns,
-        colors=["skyblue", "salmon", "khaki"][:len(pivot.columns)],
+        colors=["#38506e", "#82a3be", "#bfd6de"][:len(pivot.columns)],
         alpha=0.8
     )
 
