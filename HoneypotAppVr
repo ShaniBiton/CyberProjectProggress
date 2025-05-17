@@ -83,13 +83,42 @@ class HoneypotApp(tk.Tk):
         if fig3:
             canvas3 = FigureCanvasTkAgg(fig3, master=self.container)
             canvas3.draw()
-            canvas3.get_tk_widget().grid(row=3, column=3, padx=10, pady=10)
+            canvas3.get_tk_widget().grid(row=3, column=4, padx=10, pady=10)
         # Forth graph - Database Hits
         fig4 = database_hitss()
         if fig4:
             canvas4 = FigureCanvasTkAgg(fig4, master=self.container)
             canvas4.draw()
             canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=10)
+        # Fifth graph - Attack Distribution Over Time
+        fig5 = attack_dis_over_time()
+        if fig5:
+            canvas5 = FigureCanvasTkAgg(fig5, master=self.container)
+            canvas5.draw()
+            canvas5.get_tk_widget().grid(row=3, column=1, padx=10, pady=10)
+
+        # Create a frame to hold the top two graphs
+        top_frame = tk.Frame(self.container)
+        top_frame.grid(row=1, column=0, columnspan=3, pady=10)
+
+        # Show the first graph inside top_frame
+        canvas1 = FigureCanvasTkAgg(fig1, master=top_frame)
+        canvas1.draw()
+        canvas1.get_tk_widget().grid(row=0, column=0, padx=20)
+
+        # Show the second graph inside top_frame
+        canvas2 = FigureCanvasTkAgg(fig2, master=top_frame)
+        canvas2.draw()
+        canvas2.get_tk_widget().grid(row=0, column=1, padx=20)
+
+        # Graph 3 (bottom-left)
+        canvas3.get_tk_widget().grid(row=2, column=0, padx=10, pady=10)
+
+        # Graph 4 (bottom-middle)
+        canvas4.get_tk_widget().grid(row=2, column=1, padx=10, pady=10)
+
+        # Graph 5 (bottom-right)
+        canvas5.get_tk_widget().grid(row=2, column=2, padx=10, pady=10)
 
 
 # First graph - Interactions Over Time
@@ -126,7 +155,7 @@ def interactions_over_time():
         df = pd.read_sql_query(query, conn)
 
         # Creating a figure for the dashboard
-        fig = Figure(figsize=(5, 4), dpi=100)
+        fig = Figure(figsize=(4, 4), dpi=100)
         ax = fig.add_subplot(111)
         ax.plot(df['time'], df['num_interactions'], marker='o', linestyle='-', color='royalblue')
         ax.set_title("Number of Interactions Over Time")
@@ -134,6 +163,7 @@ def interactions_over_time():
         ax.set_ylabel("Interactions")
         fig.autofmt_xdate()
         ax.grid(True)
+        fig.tight_layout()
         return fig
     except FileNotFoundError:
         print("File not found: logs/interaction_logs.json")
@@ -187,7 +217,7 @@ def error_types():
     df = pd.read_sql_query(query, conn)
 
     # Create a Matplotlib figure
-    fig = Figure(figsize=(6, 4), dpi=100)
+    fig = Figure(figsize=(5, 3), dpi=100)
     ax = fig.add_subplot(111)
 
     # Horizontal bar chart
@@ -219,7 +249,7 @@ def attack_types():
     colors = ['lightcoral', 'palegreen', 'gold']
 
     # Create a Matplotlib figure
-    fig = Figure(figsize=(5, 4), dpi=100)
+    fig = Figure(figsize=(4, 3), dpi=100)
     ax = fig.add_subplot(111)
 
     # Create pie chart
@@ -263,7 +293,7 @@ def database_hitss():
     }
 
     # Create a Matplotlib figure
-    fig = Figure(figsize=(6, 4), dpi=100)
+    fig = Figure(figsize=(8, 4), dpi=100)
     ax = fig.add_subplot(111)
 
     # Assign colors to each bar based on the table name
@@ -283,40 +313,53 @@ def database_hitss():
     return fig
 
 
-    # query = """
-    # SELECT date, attack_type, amount
-    # FROM attack_dis_over_time
-    # """
-    # df = pd.read_sql_query(query, conn)
-    # df['date'] = pd.to_datetime(df['date'])
-    #
-    # # Pivot data
-    # pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
-    #
-    # # Plot
-    # ax = pivot.plot.area(figsize=(10, 6), alpha=0.7)
-    #
-    # # Format x-axis to show every day, as "May 01"
-    # ax.xaxis.set_major_locator(mdates.DayLocator())  # Tick every day
-    # ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))  # Format like 'May 01'
-    #
-    # # Rotate date labels
-    # plt.xticks(rotation=45)
-    #
-    # # Dynamic title: show the month and year of the first date in your data
-    # start_date = pivot.index.min()
-    # plt.title(f"Attack Types – {start_date.strftime('%B %Y')}")
-    #
-    # # Labels and layout
-    # plt.xlabel("Date")
-    # plt.ylabel("Number of Attacks")
-    # plt.grid(True)
-    # plt.tight_layout()
-    # plt.show()
+# Fifth graph: Attack Distribution Over Time
+def attack_dis_over_time():
+    # Connecting to the database
+    conn = sqlite3.connect("HoneyStats")
 
-    # # Close the connection
-    # curr.close()
-    # conn.close()
+    # Creating a cursor
+    curr = conn.cursor()
+
+    query = """
+    SELECT date, attack_type, amount
+    FROM attack_dis_over_time
+    """
+    df = pd.read_sql_query(query, conn)
+
+    # Assume your query and df creation code already ran successfully...
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Pivot: one column per attack type, indexed by date
+    pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
+
+    # Prepare the figure
+    fig = Figure(figsize=(5, 3), dpi=100)
+    ax = fig.add_subplot(111)
+
+    # Format x-axis for dates
+    ax.xaxis.set_major_locator(mdates.DayLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+
+    # Plot stacked area chart
+    ax.stackplot(
+        pivot.index,
+        [pivot[col] for col in pivot.columns],  # multiple y-series
+        labels=pivot.columns,
+        colors=["skyblue", "salmon", "khaki"][:len(pivot.columns)],
+        alpha=0.8
+    )
+
+    # Titles and labels
+    ax.set_title("Attack Distribution Over Time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Amount")
+    ax.legend(loc="upper left")
+    ax.grid(True)
+
+    fig.tight_layout()
+    return fig
+
 
 
 # Helper functions for the last 3 graphs
