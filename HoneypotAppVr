@@ -150,7 +150,7 @@ def interactions_over_time():
         # Creating a figure for the dashboard
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot(111)
-        ax.plot(df['time'], df['num_interactions'], marker='o', linestyle='-', color='royalblue')
+        ax.plot(df['time'], df['num_interactions'], marker='o', linestyle='-', color='#5c7385')
         ax.set_title("Number of Interactions Over Time")
         ax.set_xlabel("Time")
         ax.set_ylabel("Interactions")
@@ -215,8 +215,10 @@ def error_types():
     fig = Figure(figsize=(5, 3), dpi=100)
     ax = fig.add_subplot(111)
 
+    colors = ["#213555","#38506e", "#82a3be", "#bfd6de"]  # lightest to darkest red
+
     # Horizontal bar chart
-    ax.barh(df['type'], df['amount'], color='skyblue')
+    ax.barh(df['type'], df['amount'], color=colors)
     ax.set_title('Error distribution')
     ax.set_xlabel('Occurrences')
     ax.set_ylabel('Error Type')
