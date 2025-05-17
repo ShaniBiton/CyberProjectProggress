@@ -16,8 +16,10 @@ from matplotlib.figure import Figure
 import os
 
 
-TIME_WINDOW_SECONDS = 10
-MIN_REQUESTS_IN_WINDOW = 8
+TIME_WINDOW_SECONDS_BR_ATTACK = 5
+MIN_REQUESTS_IN_WINDOW_BR_ATTACK = 4
+MAX_TIME_DIFF_BR_ATTACK = 10
+
 
 ARCHIVE_DIR = "archive"
 os.makedirs(ARCHIVE_DIR, exist_ok=True)
@@ -313,14 +315,15 @@ class Analysis:
 
         conn.commit()
         # Brute Force
+        brute_force_new_attacks = 0
         brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser",
                                  "manager",
                                  "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
                                  "admin123"]
-        brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein"]
+        brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein", "admin", "user"]
 
         connection_logs = []
-        with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+        with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
             for line in file:
                 if line.strip():  # Skip empty lines
                     log_entry = json.loads(line)
@@ -338,11 +341,11 @@ class Analysis:
 
             # Remove timestamps outside the sliding window
             while (ip_windows[ip] and
-                   (timestamp - ip_windows[ip][0]).total_seconds() > TIME_WINDOW_SECONDS):
+                   (timestamp - ip_windows[ip][0]).total_seconds() > TIME_WINDOW_SECONDS_BR_ATTACK):
                 ip_windows[ip].popleft()
 
             # If enough requests are in the window, log the brute-force attempt
-            if len(ip_windows[ip]) >= MIN_REQUESTS_IN_WINDOW:
+            if len(ip_windows[ip]) >= MIN_REQUESTS_IN_WINDOW_BR_ATTACK:
                 attacks.append({
                     "source_ip": ip,
                     "start_time": ip_windows[ip][0].strftime("%Y-%m-%d %H:%M:%S"),
@@ -374,6 +377,42 @@ class Analysis:
                                                                                       'Brute Force'))
         else:
             curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', len(attacks)))
+        print(attacks)
+        more_catches = []
+        for log in connection_logs:
+            print(log["username"])
+            if log["username"] in brute_force_usernames or log["password"] in brute_force_passwords:
+                if attacks:
+                    for attack in attacks:
+                        if 0 < HelperFunctions.time_difference(attack["start_time"], log["timestamp"]) < HelperFunctions.time_difference(attack["start_time"], log["end_time"]):
+                            pass    # Attack already logged
+                        else:
+                            more_catches.append((log["source_ip"], log["timestamp"]))
+                else:
+                    more_catches.append((log["source_ip"], log["timestamp"]))
+        print(more_catches)
+        if more_catches:
+            curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
+            num_brute_force = curr.fetchone()
+            if num_brute_force:
+                curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
+                             (num_brute_force[0] + 1,
+                              'Brute Force'))
+            else:
+                curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', 1))
+            for i in range(1, len(more_catches)):
+                if (HelperFunctions.time_difference(more_catches[i-1][1], more_catches[i-1][1]) <=
+                        MAX_TIME_DIFF_BR_ATTACK):
+                    pass
+                else:
+                    curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
+                    num_brute_force = curr.fetchone()
+                    if num_brute_force:
+                        curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
+                                     (num_brute_force[0] + 1,
+                                      'Brute Force'))
+                    else:
+                        curr.execute("INSERT INTO attack_types VALUES(?, ?)", ('Brute Force', 1))
 
         conn.commit()
         curr.close()
@@ -688,6 +727,12 @@ class HelperFunctions:
     @staticmethod
     def parse_timestamp(ts):
         return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+
+    @staticmethod
+    def time_difference(first_time, second_time):
+        time_in_sec1 = int(first_time[11:13])*3600 + int(first_time[14:16])*60 + int(first_time[17:])
+        time_in_sec2 = int(second_time[11:13])*3600 + int(second_time[14:16])*60 + int(second_time[17:])
+        return time_in_sec2 - time_in_sec1
 
 
 # Run the app
