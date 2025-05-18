@@ -1,0 +1,432 @@
+import tkinter as tk
+from tkinter import messagebox
+import threading
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+import time
+import base64
+import json
+import socket
+import sys
+import random
+
+# Dummy credentials
+VALID_USERNAME = "admin"
+VALID_PASSWORD = "password123"
+
+HOST = '127.0.0.1'  # localhost
+PORT = 1729
+ADDR = (HOST, PORT)
+
+NUM_DIGITS_LENGTH_FIELD = 10
+REQUEST_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
+MAX_REQUEST_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
+
+
+class MainApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Main Launcher")
+        self.geometry("600x500")
+
+        # Create the socket once, keep it for the app's lifetime
+        try:
+            # Generating  an RSA key pair (public & public key)
+            client_key = RSA.generate(1024)
+            client_private_key = client_key.export_key()
+            client_public_key = client_key.publickey().export_key()
+
+            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client_socket.connect(ADDR)
+
+            # Sending the client's public key
+            self.client_socket.send(client_public_key)
+
+            # Receive the server's public key
+            self.server_public_key = self.client_socket.recv(1024).decode()
+
+            # Generating AES key to encrypt traffic from the client to the server
+            self.client_aes_key = get_random_bytes(16)
+            print('AES Key', self.client_aes_key)
+
+            # Encrypting the client's AES key using the server's public key (RSA)
+            client_cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.server_public_key))
+            enc_client_key = client_cipher_rsa.encrypt(self.client_aes_key)
+
+            # Sending the client's encrypted AES key
+            self.client_socket.send(enc_client_key)
+
+            # Receiving the server's encrypted AES key
+            en_server_aes_key = self.client_socket.recv(1024)
+
+            # Decrypting the server's AES key using the client's private key (RSA)
+            server_aes_key_rsa_cipher = PKCS1_OAEP.new(RSA.import_key(client_private_key))
+            self.server_aes_key = server_aes_key_rsa_cipher.decrypt(en_server_aes_key)
+            print('Received AES Key', self.server_aes_key)
+            print('Encrypted AES Key', enc_client_key)
+        except socket.error as e:
+            messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
+            self.client_socket = None
+
+        self.container = tk.Frame(self)
+        self.container.pack(fill="both", expand=True)
+
+        self.frames = {}
+        for F in (
+            MainLauncherPage,
+            LoginPage, MainMenu, FormPage, TextPage,
+            SimpleFormPage
+        ):
+            page_name = F.__name__
+            frame = F(parent=self, controller=self)
+            self.frames[page_name] = frame
+            frame.place(relwidth=1, relheight=1)
+
+        self.show_frame("MainLauncherPage")
+
+    def show_frame(self, page_name):
+        self.frames[page_name].tkraise()
+
+
+# ---------- Launcher Page ----------
+class MainLauncherPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="Welcome to the App Launcher!", font=("Helvetica", 20)).pack(pady=40)
+
+        tk.Button(self, text="Go to Login + 4-Page App", font=("Helvetica", 14),
+                  command=self.login).pack(pady=20)
+
+        tk.Button(self, text="Go to Simple Form App", font=("Helvetica", 14),
+                  command=self.sign_up).pack(pady=20)
+
+    def login(self):
+        # Run the socket communication in a background thread
+        threading.Thread(target=ServerHandling.send_message, args=(self.controller.client_socket, "login",
+                                                                   self.controller.client_aes_key),
+                         daemon=True).start()
+        self.controller.show_frame("LoginPage")
+
+    def sign_up(self):
+        ServerHandling.send_message(self.controller.client_socket, "sign up", self.controller.client_aes_key)
+        self.controller.show_frame("SimpleFormPage")
+
+
+# ---------- Login + 4-Page App ----------
+class LoginPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="Login", font=("Helvetica", 24)).pack(pady=30)
+
+        tk.Label(self, text="Username:", font=("Helvetica", 14)).pack()
+        self.username_entry = tk.Entry(self, font=("Helvetica", 14))
+        self.username_entry.pack(pady=5)
+
+        tk.Label(self, text="Password:", font=("Helvetica", 14)).pack()
+        self.password_entry = tk.Entry(self, font=("Helvetica", 14), show="*")
+        self.password_entry.pack(pady=5)
+
+        tk.Button(self, text="Login", font=("Helvetica", 14), command=self.check_login).pack(pady=20)
+
+    def check_login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+        threading.Thread(target=self.thread_login, args=(username,password), daemon=True).start()
+
+    def thread_login(self, username, password):
+        # Run the socket communication in a background thread
+        ServerHandling.send_message(self.controller.client_socket, username, self.controller.client_aes_key)
+        ServerHandling.send_message(self.controller.client_socket, password, self.controller.client_aes_key)
+        server_verification = ServerHandling.receive_message(self.controller.client_socket,
+                                                             self.controller.server_aes_key)
+        if server_verification == "Login Successful":
+            self.controller.show_frame("MainMenu")
+        else:
+            messagebox.showerror("Login Failed", "Invalid username or password.")
+
+
+class MainMenu(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Main Menu", font=("Helvetica", 20)).pack(pady=30)
+
+        tk.Button(self, text="Place Order", width=25, font=("Helvetica", 14),
+                  command=self.go_place_order).pack(pady=10)
+        tk.Button(self, text="View Profile", width=25, font=("Helvetica", 14),
+                  command=self.go_view_profile).pack(pady=10)
+        tk.Button(self, text="Log Out", width=25, font=("Helvetica", 14),
+                  command=lambda: controller.show_frame("MainLauncherPage")).pack(pady=30)
+
+    def go_place_order(self):
+        ServerHandling.send_message(self.controller.client_socket, "order", self.controller.client_aes_key)
+        self.controller.show_frame("FormPage")
+
+    def go_view_profile(self):
+        ServerHandling.send_message(self.controller.client_socket, "profile", self.controller.client_aes_key)
+        threading.Thread(target=self.controller.frames["TextPage"].update_texts, daemon=True).start()
+        self.controller.show_frame("TextPage")
+
+
+class FormPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Place Order", font=("Helvetica", 20)).pack(pady=10)
+
+        self.check_vars = []
+        checklist_items = ["Pizza Margaritta - 10$", "Pesto Pasta - 12$", "Focaccia - 8$", "Ice Tea - 4$",
+                           "Hot Chocolate - 5$"]
+        self.checklist_frame = tk.Frame(self)
+        self.checklist_frame.pack(pady=10)
+
+        for item in checklist_items:
+            var = tk.BooleanVar()
+            cb = tk.Checkbutton(self.checklist_frame, text=item, variable=var, font=("Helvetica", 12))
+            cb.pack(anchor="w")
+            self.check_vars.append((item, var))
+
+        self.submit_order_button = tk.Button(self, text="Submit Order", font=("Helvetica", 12),
+                                             command=self.submit_order)
+        self.submit_order_button.pack(pady=10)
+
+        self.open_forms_frame = tk.Frame(self)
+        self.entries = []
+
+        self.entries = {}
+        fields = ["Full Name", "Address", "Card Number", "Expiry Date", "cvv"]
+
+        for field in fields:
+            row = tk.Frame(self)
+            row.pack(pady=5)
+            tk.Label(row, text=field+":", width=10, anchor="e", font=("Helvetica", 12)).pack(side=tk.LEFT)
+            entry = tk.Entry(row, font=("Helvetica", 12), width=30)
+            entry.pack(side=tk.LEFT)
+            self.entries[field] = entry
+
+        tk.Button(self, text="Submit Payment", font=("Helvetica", 12), command=self.submit_payment).pack(pady=10)
+
+        tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainMenu")).pack(pady=10)
+
+    def submit_order(self):
+        self.submit_order_button.config(state="disabled")
+        selected = [item for item, var in self.check_vars if var.get()]
+        order_details = ""
+        amount = 0
+        for s in selected:
+            if s == "Pizza Margaritta - 10$":
+                amount += 10
+            elif s == "Pesto Pasta - 12$":
+                amount += 12
+            elif s == "Focaccia - 8$":
+                amount += 8
+            elif s == "Ice Tea - 4$":
+                amount += 4
+            elif s == "Hot Chocolate - 5$":
+                amount += 5
+            order_details += str(s) + ", "
+
+        threading.Thread(target=self.order_thread, args=(order_details, str(amount)), daemon=True).start()
+
+    def order_thread(self, order_details, amount):
+        ServerHandling.send_message(self.controller.client_socket, order_details, self.controller.client_aes_key)
+        ServerHandling.send_message(self.controller.client_socket, amount, self.controller.client_aes_key)
+
+    def submit_payment(self):
+        values = [entry.get() for entry in self.entries.values()]
+        messagebox.showinfo("Form Submitted", f"Values: {values}")
+
+        threading.Thread(target=self.payment_thread, args=(values,), daemon=True).start()
+
+    def payment_thread(self, values):
+        for value in values:
+            ServerHandling.send_message(self.controller.client_socket, value, self.controller.client_aes_key)
+
+        payment_status = ServerHandling.receive_message(self.controller.client_socket, self.controller.server_aes_key)
+        if payment_status == "Order placed! Payment complete!":
+            messagebox.showinfo("Order placed! Payment complete!")
+            self.submit_order_button.config(state="normal")
+            self.controller.show_frame("MainMenu")
+
+        else:
+            messagebox.showerror("Payment Error", "Payment Failed")
+            self.submit_order_button.config(state="disabled")
+            self.controller.show_frame("FormPage")
+
+
+class TextPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        tk.Label(self, text="Text Page", font=("Helvetica", 20)).pack(pady=10)
+
+        self.labels = []
+        for _ in range(4):
+            lbl = tk.Label(self, text="", font=("Helvetica", 14))
+            lbl.pack(pady=5)
+            self.labels.append(lbl)
+
+        tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainMenu")).pack(pady=20)
+
+    def update_texts(self):
+        for i in range(4):
+            msg = ServerHandling.receive_message(self.controller.client_socket, self.controller.sever_aes_key)
+            self.labels[i].config(text=msg)
+
+
+# ---------- Simple Form App ----------
+class SimpleFormPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        tk.Label(self, text="Simple Form", font=("Helvetica", 20)).pack(pady=20)
+
+        self.entries = {}
+        fields = ["ID", "Full Name", "Username", "Password"]
+
+        for field in fields:
+            row = tk.Frame(self)
+            row.pack(pady=5)
+            tk.Label(row, text=field+":", width=10, anchor="e", font=("Helvetica", 12)).pack(side=tk.LEFT)
+            entry = tk.Entry(row, font=("Helvetica", 12), width=30)
+            entry.pack(side=tk.LEFT)
+            self.entries[field] = entry
+
+        tk.Button(self, text="Submit", font=("Helvetica", 12), command=self.submit_form).pack(pady=20)
+        tk.Button(self, text="Back to Launcher", font=("Helvetica", 12),
+                  command=lambda: controller.show_frame("MainLauncherPage")).pack()
+
+    def submit_form(self):
+        data = {field: entry.get() for field, entry in self.entries.items()}
+        summary = "\n".join([f"{k}: {v}" for k, v in data.items()])
+        messagebox.showinfo("Form Submitted", summary)
+
+        threading.Thread(target=self.form_thread, args=(data,), daemon=True).start()
+
+    def form_thread(self, data):
+        client_socket = self.controller.client_socket
+        if client_socket:
+            try:
+                ServerHandling.send_message(client_socket, data["ID"], self.controller.client_aes_key)
+                ServerHandling.send_message(client_socket, data["Full Name"], self.controller.client_aes_key)
+                ServerHandling.send_message(client_socket, data["Username"], self.controller.client_aes_key)
+                ServerHandling.send_message(client_socket, data["Password"], self.controller.client_aes_key)
+                response = ServerHandling.receive_message(client_socket, self.controller.server_aes_key)
+                print("Server response:", response)
+                if response == "Sign Up successful":
+                    self.controller.show_frame("MainMenu")
+            except socket.error as e:
+                messagebox.showerror("Socket Error", f"Failed to send to server: {e}")
+        else:
+            messagebox.showerror("Connection Error", "Socket connection not available.")
+
+
+class ServerHandling:
+    @staticmethod
+    def send_message(client_socket, response, client_aes_key):
+        try:
+            # Encrypt the server's response using AES
+            # Creating the AES cipher with a new nonce (IV)
+            server_cipher = AES.new(client_aes_key, AES.MODE_GCM)
+
+            # Extracting the nonce
+            server_enc_nonce = server_cipher.nonce
+
+            # Encrypting the message and generating the tag
+            server_ciphertext, server_tag = server_cipher.encrypt_and_digest(response.encode())
+
+            # Prepare the encrypted data to be sent
+            server_data_dict = {
+                "msg": base64.b64encode(server_ciphertext).decode(),
+                "nonce": base64.b64encode(server_enc_nonce).decode(),
+                "tag": base64.b64encode(server_tag).decode()
+            }
+
+            # Convert the dictionary to JSON
+            server_data_json = json.dumps(server_data_dict)
+
+            # Step 1: Ensure the response doesn't exceed the max allowed size
+            response_length = len(server_data_json)
+            if response_length > MAX_REQUEST_MESSAGE_LENGTH:
+                print("Response too large to send.")
+                return  # Break or handle appropriately
+
+            # Step 2: Create the response length field and the full message
+            response_length_field = REQUEST_LENGTH_FIELD_FORMAT % response_length
+            response_data = response_length_field + server_data_json
+
+            # Step 3: Send the encrypted response to the client
+            client_socket.send(response_data.encode())
+            # print("Encrypted message sent successfully!")
+
+            # Simulated Latency - to mimic real-life traffic and delay
+            delay = random.uniform(0.1, 2)  # Simulated delay between 100ms and 2 seconds
+            time.sleep(delay)
+
+        except (socket.error, ValueError) as e:
+            print(f"{type(e).__name__}: {e}")
+            return
+        except KeyboardInterrupt:
+            print("Keyboard interrupt - stopping")
+        except Exception as e:
+            print(f"Unexpected Error: {type(e).__name__}: {e}")
+            return
+
+    @staticmethod
+    def receive_message(client_socket, server_aes_key):
+        try:
+            # Step 1: Receive the message length field
+            response_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+            if not response_length_field:  # Client disconnected cleanly
+                raise ConnectionResetError("Server disconnected unexpectedly")
+
+            # Convert to integer to know the size of the incoming request
+            response_length = int(response_length_field)
+
+            # Step 2: Receive the actual encrypted message JSON
+            server_data_json_st = client_socket.recv(response_length).decode()
+            server_data_json = json.loads(server_data_json_st)
+
+            # Decode the components of the encrypted message
+            en_server_response = base64.b64decode(server_data_json['msg'].encode())
+            server_nonce = base64.b64decode(server_data_json['nonce'].encode())
+            server_tag = base64.b64decode(server_data_json['tag'].encode())
+
+            # Step 3: Decrypt the message using AES GCM mode
+            response_cipher = AES.new(server_aes_key, AES.MODE_GCM, nonce=server_nonce)
+            try:
+                server_response = response_cipher.decrypt_and_verify(en_server_response, server_tag)
+            except ValueError:
+                print("The message was modified!")
+                sys.exit(1)
+
+            # Step 4: Simulated latency before processing the decrypted message
+            delay = random.uniform(0.1, 2)
+            time.sleep(delay)
+
+            # Step 5: Return the decrypted message as a string
+            print("Received and decrypted message:", server_response.decode())
+            return server_response.decode()
+
+        except (socket.error, ValueError, ConnectionResetError) as e:
+            print(f"{type(e).__name__}: {e}")
+            raise  # Re-raise the error for clean handling
+        except KeyboardInterrupt:
+            print("Keyboard interrupt - stopping")
+        except Exception as e:
+            print(f"Unexpected Error: {e}")
+            return
+
+
+if __name__ == "__main__":
+    app = MainApp()
+    app.mainloop()
