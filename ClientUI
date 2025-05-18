@@ -1,8 +1,6 @@
 import time
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
-from PIL import Image
 import socket
 import json
 import threading
@@ -122,7 +120,7 @@ class MainMenu(tk.Frame):
         tk.Button(self, text="Place Order", width=25, font=("Helvetica", 14),
                   command=self.go_place_order).pack(pady=10)
         tk.Button(self, text="View Profile", width=25, font=("Helvetica", 14),
-                  command=lambda: controller.show_frame("TextPage")).pack(pady=10)
+                  command=self.go_view_profile).pack(pady=10)
         tk.Button(self, text="Log Out", width=25, font=("Helvetica", 14),
                   command=lambda: controller.show_frame("MainLauncherPage")).pack(pady=30)
 
@@ -132,6 +130,7 @@ class MainMenu(tk.Frame):
 
     def go_view_profile(self):
         ServerHandling.send_message(self.controller.client_socket, "profile")
+        threading.Thread(target=self.controller.frames["TextPage"].update_texts, daemon=True).start()
         self.controller.show_frame("TextPage")
 
 
@@ -225,17 +224,19 @@ class TextPage(tk.Frame):
         self.controller = controller
         tk.Label(self, text="Text Page", font=("Helvetica", 20)).pack(pady=10)
 
-        texts = [
-            "Welcome to the Text Page.",
-            "This app demonstrates multi-page layout.",
-            "Each section can be customized.",
-            "Tkinter is great for desktop apps!"
-        ]
-        for text in texts:
-            tk.Label(self, text=text, font=("Helvetica", 14)).pack(pady=5)
+        self.labels = []
+        for _ in range(4):
+            lbl = tk.Label(self, text="", font=("Helvetica", 14))
+            lbl.pack(pady=5)
+            self.labels.append(lbl)
 
         tk.Button(self, text="Back to Menu", font=("Helvetica", 12),
                   command=lambda: controller.show_frame("MainMenu")).pack(pady=20)
+
+    def update_texts(self):
+        for i in range(4):
+            msg = ServerHandling.receive_message(self.controller.client_socket)
+            self.labels[i].config(text=msg)
 
 
 # ---------- Simple Form App ----------
