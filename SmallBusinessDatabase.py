@@ -1,3 +1,4 @@
+
 import sqlite3
 
 # Connecting to the database
@@ -31,7 +32,7 @@ curr.execute("INSERT INTO accounts VALUES('222222222','megauser', 'a1b2c3', 'Liz
              "'2');")
 curr.execute("INSERT INTO accounts VALUES('000000000','test', '123456789', 'Lily Richard',  "
              "'2');")
-curr.execute("INSERT INTO accounts VALUES('123456789','Demo', '1234', 'Emily Beth',  "
+curr.execute("INSERT INTO accounts VALUES('123456779','Demo', '1234', 'Emily Beth',  "
              "'2');")
 curr.execute("INSERT INTO accounts VALUES('123123123','mysql', 'abcde', 'Lilibeth Richard',  "
              "'2');")
@@ -51,11 +52,11 @@ curr.execute("INSERT INTO accounts VALUES('756757346', 'privileged', 'letmein', 
              "'1');")
 curr.execute("INSERT INTO accounts VALUES('756499946', 'adminuser', '1234567', 'Ben Robert ',  "
              "'1');")
-curr.execute("INSERT INTO accounts VALUES('756499946', 'rootuser', '111111', 'Ben Robert ',  "
+curr.execute("INSERT INTO accounts VALUES('756496646', 'rootuser', '111111', 'Ben Robert ',  "
              "'1');")
-curr.execute("INSERT INTO accounts VALUES('756499946', 'adm', '012345', 'Ben Robert ',  "
+curr.execute("INSERT INTO accounts VALUES('753299946', 'adm', '012345', 'Ben Robert ',  "
              "'1');")
-curr.execute("INSERT INTO accounts VALUES('756499946', 'admin123', '123', 'Ben Robert ',  "
+curr.execute("INSERT INTO accounts VALUES('756476946', 'admin123', '123', 'Ben Robert ',  "
              "'1');")
 
 curr.execute("SELECT * FROM accounts")
