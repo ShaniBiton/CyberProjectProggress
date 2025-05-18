@@ -1,0 +1,129 @@
+import socket
+import time
+import random
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Hash import HMAC, SHA256
+from Crypto.Random import get_random_bytes
+import sys
+import json
+import base64
+
+
+REQUEST_LENGTH = 2
+NUM_DIGITS_LENGTH_FIELD = 3
+RESPONSE_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
+MAX_RESPONSE_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
+
+HOST = '0.0.0.0'
+PORT = 1729
+ADDR = (HOST, PORT)
+
+# Generating  an RSA key pair (public & public key)
+server_key = RSA.generate(1024)
+server_private_key = server_key.export_key()
+server_public_key = server_key.publickey().export_key()
+
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(ADDR)
+server_socket.listen(1)
+
+print('waiting for connections')
+client_socket, address = server_socket.accept()
+print(address)
+
+# Receive the client's public key
+client_public_key = client_socket.recv(1024).decode()
+
+# Sending the server's public key
+client_socket.send(server_public_key)
+
+# Generating AES key to encrypt traffic from the server to the client
+server_aes_key = get_random_bytes(16)
+# print('AES Key', server_aes_key)
+
+# Encrypting the server's AES key using the client's public key (RSA)
+server_cipher_rsa = PKCS1_OAEP.new(RSA.import_key(client_public_key))
+enc_server_key = server_cipher_rsa.encrypt(server_aes_key)
+# print('Encrypted AES Key', enc_server_key)
+
+# Sending the server's encrypted AES key
+client_socket.send(enc_server_key)
+
+# Receiving the client's encrypted AES key
+en_client_aes_key = client_socket.recv(1024)
+
+# Decrypting the client's AES key using the server's private key (RSA)
+client_aes_key_rsa_cipher = PKCS1_OAEP.new(RSA.import_key(server_private_key))
+client_aes_key = client_aes_key_rsa_cipher.decrypt(en_client_aes_key)
+# print('Received AES Key', client_aes_key)
+
+while True:
+    # request = client_socket.recv(REQUEST_LENGTH).decode()
+    # Receive the client's data
+    client_data_json_st = client_socket.recv(250).decode()
+    client_data_json = json.loads(client_data_json_st)
+    en_client_request = base64.b64decode(client_data_json['msg'].encode())
+    client_nonce = base64.b64decode(client_data_json['nonce'].encode())
+    client_tag = base64.b64decode(client_data_json['tag'].encode())
+
+    # print("client request: ", en_client_request)
+    # print("client nonce: ", client_nonce)
+    # print("client tag: ", client_tag)
+
+    # Decrypt the client's data - request
+    request_cipher = AES.new(client_aes_key, AES.MODE_GCM, nonce=client_nonce)
+    try:
+        client_request = request_cipher.decrypt_and_verify(en_client_request, client_tag)
+    except ValueError:
+        print("The message was modified!")
+        sys.exit(1)
+    print("Message:", client_request.decode())
+
+    if not client_request:
+        break
+
+    if not client_request:
+        break
+    print(client_request)
+    if client_request.decode() == 'TIME':
+        response_message = time.ctime()
+    elif client_request.decode() == 'NAME':
+        response_message = 'Super Server'
+    elif client_request.decode() == "RAND":
+        response_message = str(random.randint(1, 10))
+    elif client_request.decode() == 'EXIT':
+        response_message = 'Connection terminated!'
+        break
+    elif not client_request:
+        break
+    else:
+        response_message = 'ERROR!'
+
+    # Encrypting the server's response using AES
+    # Creating the cipher
+    server_cipher = AES.new(server_aes_key, AES.MODE_GCM)
+
+    # Extracting the new nonce (IV)
+    server_enc_nonce = server_cipher.nonce
+
+    # print('This is the nonce:', server_enc_nonce)
+    # Encrypting the message and extracting the tag
+    server_ciphertext, server_tag = server_cipher.encrypt_and_digest(response_message.encode())  # The data must be encoded
+
+    # print(server_ciphertext)
+    # Sending the server's data - response
+    server_data_dict = {"msg": base64.b64encode((server_ciphertext)).decode(),
+                        "nonce": base64.b64encode((server_enc_nonce)).decode(),
+                        "tag": base64.b64encode((server_tag)).decode()}
+    server_data_json = json.dumps(server_data_dict)
+
+    response_length = len(server_data_json)
+    if response_length > MAX_RESPONSE_MESSAGE_LENGTH:
+        break
+    response_length_field = RESPONSE_LENGTH_FIELD_FORMAT % response_length
+    response_data = response_length_field + server_data_json
+    client_socket.send(response_data.encode())
+client_socket.close()
+server_socket.close()
+print('Connection Terminated!')
