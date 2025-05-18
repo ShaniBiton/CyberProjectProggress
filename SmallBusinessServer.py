@@ -203,19 +203,6 @@ def client_view_client_profile(client_socket, client_username, addr):
         return
 
 
-def client_view_menu(client_socket, client_username, addr):
-    try:
-        print("Sending pictures of meals to the client")
-        handle_client(client_socket, client_username, addr)
-    except KeyboardInterrupt:
-        print("Keyboard interrupt - stopping")
-        return
-    except Exception as e:
-        print(f"Unexpected Error: {type(e).__name__}: {e}")
-        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
-        return
-
-
 def client_place_order(client_socket, client_username, addr):
     try:
         # To note which query was executed in case of an error (for more accurate logging)
@@ -229,6 +216,9 @@ def client_place_order(client_socket, client_username, addr):
             # Receive order from client
             # Order details
             order_details = receive_message(client_socket, addr)
+
+            # Amount
+            payment_amount = receive_message(client_socket, addr)
 
             # Name
             order_client_name = receive_message(client_socket, addr)
@@ -245,9 +235,6 @@ def client_place_order(client_socket, client_username, addr):
 
             # CVV
             payment_card_cvv = receive_message(client_socket, addr)
-
-            # Amount
-            payment_amount = receive_message(client_socket, addr)
 
             # Randomize SUCCESSFUL or FAILED payment
             payment_status_random = random.randint(0, 2)
@@ -406,32 +393,14 @@ def handle_client(client_socket, client_username, addr):
             if client_sec_level:
                 print(client_sec_level[0])
 
-                # Send Client's Security level
-                send_message(client_socket, f"Security Level - {client_sec_level[0]}", addr)
-
                 # User logged in, can execute several actions, now chose one:
                 user_action = receive_message(client_socket, addr)
                 if user_action == "order":
                     print("order")
                     client_place_order(client_socket, client_username, addr)
-                elif user_action == "menu":
-                    print("menu")
-                    client_view_menu(client_socket, client_username, addr)
                 elif user_action == "profile":
                     print("profile")
                     client_view_client_profile(client_socket, client_username, addr)
-                elif user_action == "view accounts":
-                    print("view accounts")
-                    send_message(client_socket, "The accounts table", addr)
-                    handle_client(client_socket, client_username, addr)
-                elif user_action == "view orders":
-                    print("view orders")
-                    send_message(client_socket, "The orders table", addr)
-                    handle_client(client_socket, client_username, addr)
-                elif user_action == "view payments":
-                    print("view payments")
-                    send_message(client_socket, "The payments table", addr)
-                    handle_client(client_socket, client_username, addr)
                 elif user_action == "exit":
                     pass
     except (sqlite3.Error, ValueError, socket.error) as e:
@@ -535,7 +504,7 @@ def sign_up(client_socket, addr):
                 # Checking if the username already exists
                 curr.execute(f"SELECT password FROM accounts WHERE username = '{new_user_username}'")
                 database_username = curr.fetchone()
-                if database_username[0]:
+                if database_username:
                     send_message(client_socket, "Username already exists", addr)
                     continue
 
@@ -556,21 +525,12 @@ def sign_up(client_socket, addr):
                 print("Successful user sign up!")
 
                 # Send confirmation message
-                send_message("Sign Up succussful")
-
-                # Print updated database
-                curr.execute("SELECT * FROM accounts")
-                database_updates += 1
-                rows = curr.fetchall()
-
-                # Printing all rows
-                for row in rows:
-                    print(row)
+                send_message(client_socket,"Sign Up successful", addr)
 
                 # Logging the new connection
                 log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
-                break
-            return new_user_username
+                return new_user_username
+            return None
     except (sqlite3.Error, ValueError, socket.error) as e:
         print(f"{type(e).__name__}: {e}")
         # # Information leakage - revealing which part of a login attempt failed
