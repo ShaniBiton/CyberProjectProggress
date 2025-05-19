@@ -96,13 +96,13 @@ class MainLauncherPage(tk.Frame):
         self.controller = controller
         self.configure(bg="#FEF3E2")
 
-        tk.Label(self, text="Welcome to the App Launcher!", font=("Helvetica", 20), bg="#FEF3E2").pack(pady=40)
+        tk.Label(self, text="Welcome!", font=("Helvetica", 40), bg="#FEF3E2").pack(pady=40)
 
-        tk.Button(self, text="Go to Login + 4-Page App", font=("Helvetica", 14),
-                  command=self.login, bg="#ffefd6", border=1).pack(pady=20)
+        tk.Button(self, text="Login", font=("Helvetica", 20),
+                  command=self.login, bg="#ffefd6", border=1, width=16, height=1).pack(pady=20)
 
-        tk.Button(self, text="Go to Simple Form App", font=("Helvetica", 14),
-                  command=self.sign_up, bg="#ffefd6", border=1).pack(pady=20)
+        tk.Button(self, text="Sign Up", font=("Helvetica", 20),
+                  command=self.sign_up, bg="#ffefd6", border=1, width=16, height=1).pack(pady=20)
 
     def login(self):
         # Run the socket communication in a background thread
