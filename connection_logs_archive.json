@@ -1,0 +1,26 @@
+{"timestamp": "2025-05-19 09:36:00", "source_ip": "127.0.0.1", "username": "admin", "password": "A", "login_status": "FAILED"}
+{"timestamp": "2025-05-19 09:36:13", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-19 09:41:52", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-19 09:45:25", "source_ip": "127.0.0.1", "username": "WinstonTheQueen", "password": "winny123", "login_status": "SIGNUP"}
+{"timestamp": "2025-05-19 09:47:35", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-19 09:47:59", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-19 09:48:59", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-19 10:48:43", "source_ip": "127.0.0.1", "username": "admin", "password": "Or 1=1", "login_status": "FAILED"}
+{"timestamp": "2025-05-19 10:48:55", "source_ip": "127.0.0.1", "username": "admin", "password": "1=1", "login_status": "FAILED"}
+{"timestamp": "2025-05-19 10:49:57", "source_ip": "127.0.0.1", "username": "admin", "password": "<script>", "login_status": "FAILED"}
+{"timestamp": "2025-05-18 10:50:59", "source_ip": "127.0.0.1", "username": "admin", "password": "<run>", "login_status": "FAILED"}
+{"timestamp": "2025-05-18 10:51:20", "source_ip": "127.0.0.1", "username": "admin", "password": "<run>", "login_status": "FAILED"}
+{"timestamp": "2025-05-18 10:51:28", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-18 21:58:41", "source_ip": "127.0.0.1", "username": "hello", "password": "<run>", "login_status": "FAILED"}
+{"timestamp": "2025-05-18 21:58:53", "source_ip": "127.0.0.1", "username": "hello", "password": "<script>", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 06:59:45", "source_ip": "127.0.0.1", "username": "admin", "password": "1=1", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 06:59:58", "source_ip": "127.0.0.1", "username": "admin", "password": "DROP TABLE", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 07:00:15", "source_ip": "127.0.0.1", "username": "admin", "password": "1==1", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 07:00:23", "source_ip": "127.0.0.1", "username": "admin", "password": "1   =   1", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 07:01:02", "source_ip": "127.0.0.1", "username": "jhonney", "password": "12345", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 07:01:21", "source_ip": "127.0.0.1", "username": "jhonny1", "password": "12345", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 07:01:35", "source_ip": "127.0.0.1", "username": "ohnny1", "password": "12345", "login_status": "FAILED"}
+{"timestamp": "2025-05-17 07:01:46", "source_ip": "127.0.0.1", "username": "johnny1", "password": "12345", "login_status": "SUCCESSFUL"}
+{"timestamp": "2025-05-19 11:16:36", "source_ip": "127.0.0.1", "username": "admin", "password": "123456", "login_status": "FAILED"}
+{"timestamp": "2025-05-19 11:16:42", "source_ip": "127.0.0.1", "username": "admin", "password": "password", "login_status": "FAILED"}
+{"timestamp": "2025-05-19 11:16:47", "source_ip": "127.0.0.1", "username": "admin", "password": "admin", "login_status": "SUCCESSFUL"}
