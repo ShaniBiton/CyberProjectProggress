@@ -65,436 +65,454 @@ class HoneypotApp(tk.Tk):
 
     # Dashboard
     def show_dashboard(self):
-        self.clear_container()
+        try:
+            self.clear_container()
 
-        # Title and stats
-        ttk.Label(self.container, text="Honeypot Dashboard", font=("Arial", 44)).grid(row=0, column=0, columnspan=3,
-                                                                                        pady=(5, 0))
-        stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
-        ttk.Label(self.container, text=stats, font=("Arial", 16)).grid(row=1, column=0, columnspan=3, pady=(0, 5))
+            # Title and stats
+            ttk.Label(self.container, text="Honeypot Dashboard", font=("Arial", 44)).grid(row=0, column=0, columnspan=3,
+                                                                                            pady=(5, 0))
+            stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
+            ttk.Label(self.container, text=stats, font=("Arial", 16)).grid(row=1, column=0, columnspan=3, pady=(0, 5))
 
-        # Create a frame to hold the top two graphs
-        top_frame = tk.Frame(self.container)
-        top_frame.configure(bg='#f7f3ee')
-        top_frame.grid(row=2, column=1, columnspan=4, pady=0)
+            # Create a frame to hold the top two graphs
+            top_frame = tk.Frame(self.container)
+            top_frame.configure(bg='#f7f3ee')
+            top_frame.grid(row=2, column=1, columnspan=4, pady=0)
 
-        # First graph: Interactions Over Time
-        fig1 = GraphsCharts.interactions_over_time()
-        if fig1:
-            canvas1 = FigureCanvasTkAgg(fig1, master=top_frame)
-            canvas1.draw()
-            canvas1.get_tk_widget().grid(row=0, column=1, padx=20)
+            # First graph: Interactions Over Time
+            fig1 = GraphsCharts.interactions_over_time()
+            if fig1:
+                canvas1 = FigureCanvasTkAgg(fig1, master=top_frame)
+                canvas1.draw()
+                canvas1.get_tk_widget().grid(row=0, column=1, padx=20)
 
-        # Second graph: Error Distribution
-        fig2 = GraphsCharts.error_types()
-        if fig2:
-            canvas2 = FigureCanvasTkAgg(fig2, master=top_frame)
-            canvas2.draw()
-            canvas2.get_tk_widget().grid(row=0, column=0, padx=20)
+            # Second graph: Error Distribution
+            fig2 = GraphsCharts.error_types()
+            if fig2:
+                canvas2 = FigureCanvasTkAgg(fig2, master=top_frame)
+                canvas2.draw()
+                canvas2.get_tk_widget().grid(row=0, column=0, padx=20)
 
-        # Third graph - Attack Types
-        fig3 = GraphsCharts.attack_types()
-        if fig3:
-            canvas3 = FigureCanvasTkAgg(fig3, master=top_frame)
-            canvas3.draw()
-            canvas3.get_tk_widget().grid(row=0, column=2, padx=3, pady=0)
+            # Third graph - Attack Types
+            fig3 = GraphsCharts.attack_types()
+            if fig3:
+                canvas3 = FigureCanvasTkAgg(fig3, master=top_frame)
+                canvas3.draw()
+                canvas3.get_tk_widget().grid(row=0, column=2, padx=3, pady=0)
 
-        # Forth graph - Database Hits
-        fig4 = GraphsCharts.database_hitss()
-        if fig4:
-            canvas4 = FigureCanvasTkAgg(fig4, master=self.container)
-            canvas4.draw()
+            # Forth graph - Database Hits
+            fig4 = GraphsCharts.database_hitss()
+            if fig4:
+                canvas4 = FigureCanvasTkAgg(fig4, master=self.container)
+                canvas4.draw()
+                canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
+            # Fifth graph - Attack Distribution Over Time
+            fig5 = GraphsCharts.attack_dis_over_time()
+            if fig5:
+                canvas5 = FigureCanvasTkAgg(fig5, master=self.container)
+                canvas5.draw()
+                canvas5.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
+
+            # Graph 4 (bottom-middle)
             canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
-        # Fifth graph - Attack Distribution Over Time
-        fig5 = GraphsCharts.attack_dis_over_time()
-        if fig5:
-            canvas5 = FigureCanvasTkAgg(fig5, master=self.container)
-            canvas5.draw()
-            canvas5.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
 
-        # Graph 4 (bottom-middle)
-        canvas4.get_tk_widget().grid(row=3, column=1, padx=10, pady=0)
-
-        # Graph 5 (bottom-right)
-        canvas5.get_tk_widget().grid(row=3, column=2, padx=10, pady=0)
+            # Graph 5 (bottom-right)
+            canvas5.get_tk_widget().grid(row=3, column=2, padx=10, pady=0)
+        except Exception as e:
+            print(e)
 
 
 class Analysis:
     @staticmethod
     def interactions_analysis():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        # Creating a cursor
-        curr = conn.cursor()
-        logs = []
-        with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():  # Skip empty lines
-                    log_entry = json.loads(line)
-                    logs.append(log_entry)
+            # Creating a cursor
+            curr = conn.cursor()
+            logs = []
+            with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():  # Skip empty lines
+                        log_entry = json.loads(line)
+                        logs.append(log_entry)
 
-        if logs:
-            for log in logs:
-                curr.execute("SELECT num_interactions FROM interaction_over_time WHERE time = (?)",
-                             (log["timestamp"][:10],))
-                num_inter = curr.fetchone()
-                if num_inter:
-                    updated_num_inter = num_inter[0] + 1
-                    # Add one more interaction for this date
-                    curr.execute("UPDATE interaction_over_time SET num_interactions = ? WHERE time = ?",
-                                 (updated_num_inter, log["timestamp"][:10]))
-                else:
-                    curr.execute("INSERT INTO interaction_over_time VALUES(?, ?)",
-                                  (log["timestamp"][:10], 1))
+            if logs:
+                for log in logs:
+                    curr.execute("SELECT num_interactions FROM interaction_over_time WHERE time = (?)",
+                                 (log["timestamp"][:10],))
+                    num_inter = curr.fetchone()
+                    if num_inter:
+                        updated_num_inter = num_inter[0] + 1
+                        # Add one more interaction for this date
+                        curr.execute("UPDATE interaction_over_time SET num_interactions = ? WHERE time = ?",
+                                     (updated_num_inter, log["timestamp"][:10]))
+                    else:
+                        curr.execute("INSERT INTO interaction_over_time VALUES(?, ?)",
+                                      (log["timestamp"][:10], 1))
 
-        conn.commit()
-        curr.close()
-        conn.close()
+            conn.commit()
+            curr.close()
+            conn.close()
+        except Exception as e:
+            print(e)
 
     @staticmethod
     def error_analysis():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        # Creating a cursor
-        curr = conn.cursor()
-        logs = []
-        with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():  # Skip empty lines
-                    log_entry = json.loads(line)
-                    logs.append(log_entry)
+            # Creating a cursor
+            curr = conn.cursor()
+            logs = []
+            with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():  # Skip empty lines
+                        log_entry = json.loads(line)
+                        logs.append(log_entry)
 
-        if logs:
-            for log in logs:
-                curr.execute("SELECT amount FROM error_types WHERE type = (?)",
-                             (log["error_type"],))
-                num_inter = curr.fetchone()
-                if num_inter:
-                    updated_num_inter = num_inter[0] + 1
-                    # Add one more interaction for this date
-                    curr.execute("UPDATE error_types SET amount = ? WHERE type = ?",
-                                 (updated_num_inter, log["error_type"]))
-                else:
-                    curr.execute("INSERT INTO error_types VALUES(?, ?)",
-                                 (log["error_type"], 1))
-        conn.commit()
-        curr.close()
-        conn.close()
+            if logs:
+                for log in logs:
+                    curr.execute("SELECT amount FROM error_types WHERE type = (?)",
+                                 (log["error_type"],))
+                    num_inter = curr.fetchone()
+                    if num_inter:
+                        updated_num_inter = num_inter[0] + 1
+                        # Add one more interaction for this date
+                        curr.execute("UPDATE error_types SET amount = ? WHERE type = ?",
+                                     (updated_num_inter, log["error_type"]))
+                    else:
+                        curr.execute("INSERT INTO error_types VALUES(?, ?)",
+                                     (log["error_type"], 1))
+            conn.commit()
+            curr.close()
+            conn.close()
+        except Exception as e:
+            print(e)
 
     @staticmethod
     def attack_analysis():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        # Creating a cursor
-        curr = conn.cursor()
+            # Creating a cursor
+            curr = conn.cursor()
 
-        # Analysing the payloads
-        # SQL Injection
-        sql_payloads = ["' OR '1'='1", "' OR 1=1--", "' OR '' = '", "' UNION SELECT username, password FROM users--",
-                        "' UNION SELECT username, password FROM accounts--", "' AND 1=CONVERT(int, 'text')--",
-                        "' OR IF(1=1, SLEEP(3), 0)--", "'; DROP TABLE users--", "'; DROP TABLE accounts--",
-                        "'; INSERT INTO users (username) VALUES ('evil')--", "' OR '1'='1' --", "' OR '1'='1' /* ",
-                        "' UNION SELECT number, cvv FROM credit_cards--",
-                        "' UNION SELECT card_number, cvv FROM payments--",
-                        "' UNION SELECT address FROM orders--"]
-        sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1", "1==1"]
+            # Analysing the payloads
+            # SQL Injection
+            sql_payloads = ["' OR '1'='1", "' OR 1=1--", "' OR '' = '", "' UNION SELECT username, password FROM users--",
+                            "' UNION SELECT username, password FROM accounts--", "' AND 1=CONVERT(int, 'text')--",
+                            "' OR IF(1=1, SLEEP(3), 0)--", "'; DROP TABLE users--", "'; DROP TABLE accounts--",
+                            "'; INSERT INTO users (username) VALUES ('evil')--", "' OR '1'='1' --", "' OR '1'='1' /* ",
+                            "' UNION SELECT number, cvv FROM credit_cards--",
+                            "' UNION SELECT card_number, cvv FROM payments--",
+                            "' UNION SELECT address FROM orders--"]
+            sql_trigger_words = ["UNION", "DROP", "SELECT", "OR", "INSERT", "CONVERT", "1=1", "1==1"]
 
-        sql_rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select",
-                           r"(?i)drop\s+table",
-                           r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
-                           r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)", r".*\s*;\s*INSERT\s+INTO"]
+            sql_rg_patterns = [r"(?i)('|\")?\s*or\s+.*=.*", r"('|\")?\s*OR\s+.*=.*", r"(?i)union\s+select",
+                               r"(?i)drop\s+table",
+                               r"(?i)sleep\s*\(", r"(?i)('|\")?\s*or\s+.*=.*--", r"\s*AND\s*\d\s*=\s*CONVERT\s*\(",
+                               r"\s*OR\s+IF\s*\(.*\s*=.*\s*\,\s*SLEEP\s*\(\d\)\s*\,\s*.*\)", r".*\s*;\s*INSERT\s+INTO"]
 
-        # XSS
-        xss_payloads = ["<script>", "<run>", "</script>", "</run>", "<img", "<style", "<form", "<body", "<input",
-                        "alert(",
-                        "prompt(", "confirm(", "eval(", "setTimeout(", "setInterval(", "Function(", "onerror=",
-                        "onload=",
-                        "onclick=", "onmouseover=", "onfocus=", "onblur=", "onsubmit=", "onkeydown=", "onmousemove=",
-                        "onmouseout=", "onkeypress="]
+            # XSS
+            xss_payloads = ["<script>", "<run>", "</script>", "</run>", "<img", "<style", "<form", "<body", "<input",
+                            "alert(",
+                            "prompt(", "confirm(", "eval(", "setTimeout(", "setInterval(", "Function(", "onerror=",
+                            "onload=",
+                            "onclick=", "onmouseover=", "onfocus=", "onblur=", "onsubmit=", "onkeydown=", "onmousemove=",
+                            "onmouseout=", "onkeypress="]
 
-        xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=",
-                           r"<\s*img[^>]*>",
-                           r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
+            xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=",
+                               r"<\s*img[^>]*>",
+                               r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
-        # Data structure for the database hit barchart
-        global database_hits
-        database_hits = {
-            "accounts": {
-                "id": 0,
-                "username": 0,
-                "password": 0,
-                "full_name": 0,
-                "security_level": 0
-            },
-            "orders": {
-                "order_id": 0,
-                "customer_name": 0,
-                "address": 0,
-                "order_details": 0,
-                "payment_status": 0
-            },
-            "payments": {
-                "payment_id": 0,
-                "order_id": 0,
-                "card_number": 0,
-                "expiry_date": 0,
-                "cvv": 0,
-                "amount": 0,
-                "status": 0
+            # Data structure for the database hit barchart
+            global database_hits
+            database_hits = {
+                "accounts": {
+                    "id": 0,
+                    "username": 0,
+                    "password": 0,
+                    "full_name": 0,
+                    "security_level": 0
+                },
+                "orders": {
+                    "order_id": 0,
+                    "customer_name": 0,
+                    "address": 0,
+                    "order_details": 0,
+                    "payment_status": 0
+                },
+                "payments": {
+                    "payment_id": 0,
+                    "order_id": 0,
+                    "card_number": 0,
+                    "expiry_date": 0,
+                    "cvv": 0,
+                    "amount": 0,
+                    "status": 0
+                }
             }
-        }
 
-        interaction_logs = []
-        with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():  # Skip empty lines
-                    log_entry = json.loads(line)
-                    interaction_logs.append(log_entry)
+            interaction_logs = []
+            with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():  # Skip empty lines
+                        log_entry = json.loads(line)
+                        interaction_logs.append(log_entry)
 
-        if interaction_logs:
-            for log in interaction_logs:
-                for payload in log["payload"]:
-                    print(type(payload))
-                    # SQL Injection
-                    if HelperFunctions.payload_detector(sql_trigger_words, sql_rg_patterns, payload):
-                        curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'SQL Injection'")
-                        num_attacks = curr.fetchone()
-                        if num_attacks:
-                            curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'SQL Injection'",
-                                         (num_attacks[0] + 1,))
-                        else:
-                            curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
+            if interaction_logs:
+                for log in interaction_logs:
+                    for payload in log["payload"]:
+                        print(type(payload))
+                        # SQL Injection
+                        if HelperFunctions.payload_detector(sql_trigger_words, sql_rg_patterns, payload):
+                            curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'SQL Injection'")
+                            num_attacks = curr.fetchone()
+                            if num_attacks:
+                                curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'SQL Injection'",
+                                             (num_attacks[0] + 1,))
+                            else:
+                                curr.execute("INSERT INTO attack_types VALUES(?,?)", ("SQL Injection", 1))
 
-                        # Database hits
-                        for column in log["resource_accessed"][1]:
-                            database_hits[log["resource_accessed"][0]][column] += 1
+                            # Database hits
+                            for column in log["resource_accessed"][1]:
+                                database_hits[log["resource_accessed"][0]][column] += 1
 
-                        # Attack distribution over time
-                        curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
-                                     "AND attack_type = 'SQL Injection'",
-                                     (log["timestamp"][:10],))
-                        amount_this_date = curr.fetchone()
-                        if amount_this_date:
-                            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                         (log["timestamp"][:10], amount_this_date[0] + 1, "SQL Injection"))
-                        else:
-                            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                         (log["timestamp"][:10], 1, "SQL Injection"))
+                            # Attack distribution over time
+                            curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                                         "AND attack_type = 'SQL Injection'",
+                                         (log["timestamp"][:10],))
+                            amount_this_date = curr.fetchone()
+                            if amount_this_date:
+                                curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                             (log["timestamp"][:10], amount_this_date[0] + 1, "SQL Injection"))
+                            else:
+                                curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                             (log["timestamp"][:10], 1, "SQL Injection"))
 
-                    conn.commit()
+                        conn.commit()
 
-                    # XSS
-                    if HelperFunctions.payload_detector(xss_payloads, xss_rg_patterns, payload):
-                        curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'XSS'")
-                        num_attacks = curr.fetchone()
-                        if num_attacks:
-                            updated_num_attacks = num_attacks[0] + 1
-                            curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'XSS'",
-                                         (updated_num_attacks,))
-                        else:
-                            curr.execute("INSERT INTO attack_types VALUES(?,?)", ("XSS", 1))
+                        # XSS
+                        if HelperFunctions.payload_detector(xss_payloads, xss_rg_patterns, payload):
+                            curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'XSS'")
+                            num_attacks = curr.fetchone()
+                            if num_attacks:
+                                updated_num_attacks = num_attacks[0] + 1
+                                curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = 'XSS'",
+                                             (updated_num_attacks,))
+                            else:
+                                curr.execute("INSERT INTO attack_types VALUES(?,?)", ("XSS", 1))
 
-                        for column in log["resource_accessed"][1]:
-                            database_hits[log["resource_accessed"][0]][column] += 1
+                            for column in log["resource_accessed"][1]:
+                                database_hits[log["resource_accessed"][0]][column] += 1
 
-                        # Attack distribution over time
-                        curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
-                                     "AND attack_type = 'XSS'",
-                                     (log["timestamp"][:10],))
-                        amount_this_date = curr.fetchone()
-                        if amount_this_date:
-                            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                         (log["timestamp"][:10], amount_this_date[0] + 1, "XSS"))
-                        else:
-                            curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
-                                         (log["timestamp"][:10], 1, "XSS"))
+                            # Attack distribution over time
+                            curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                                         "AND attack_type = 'XSS'",
+                                         (log["timestamp"][:10],))
+                            amount_this_date = curr.fetchone()
+                            if amount_this_date:
+                                curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                             (log["timestamp"][:10], amount_this_date[0] + 1, "XSS"))
+                            else:
+                                curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?)",
+                                             (log["timestamp"][:10], 1, "XSS"))
 
-        conn.commit()
-        # Brute Force
-        brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser",
-                                 "manager",
-                                 "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
-                                 "admin123"]
-        brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein", "admin", "user"]
+            conn.commit()
+            # Brute Force
+            brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser",
+                                     "manager",
+                                     "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
+                                     "admin123"]
+            brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein", "admin", "user"]
 
-        connection_logs = []
-        with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():  # Skip empty lines
-                    log_entry = json.loads(line)
-                    connection_logs.append(log_entry)
+            connection_logs = []
+            with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():  # Skip empty lines
+                        log_entry = json.loads(line)
+                        connection_logs.append(log_entry)
 
-        ip_windows = defaultdict(deque)
-        attacks = []
+            ip_windows = defaultdict(deque)
+            attacks = []
 
-        for entry in connection_logs:
-            ip = entry["source_ip"]
-            timestamp = HelperFunctions.parse_timestamp(entry["timestamp"])
+            for entry in connection_logs:
+                ip = entry["source_ip"]
+                timestamp = HelperFunctions.parse_timestamp(entry["timestamp"])
 
-            # Add the current timestamp to the IP's deque
-            ip_windows[ip].append(timestamp)
+                # Add the current timestamp to the IP's deque
+                ip_windows[ip].append(timestamp)
 
-            # Remove timestamps outside the sliding window
-            while (ip_windows[ip] and
-                   (timestamp - ip_windows[ip][0]).total_seconds() > TIME_WINDOW_SECONDS_BR_ATTACK):
-                ip_windows[ip].popleft()
+                # Remove timestamps outside the sliding window
+                while (ip_windows[ip] and
+                       (timestamp - ip_windows[ip][0]).total_seconds() > TIME_WINDOW_SECONDS_BR_ATTACK):
+                    ip_windows[ip].popleft()
 
-            # If enough requests are in the window, log the brute-force attempt
-            if len(ip_windows[ip]) >= MIN_REQUESTS_IN_WINDOW_BR_ATTACK:
-                attacks.append({
-                    "source_ip": ip,
-                    "start_time": ip_windows[ip][0].strftime("%Y-%m-%d %H:%M:%S"),
-                    "end_time": ip_windows[ip][-1].strftime("%Y-%m-%d %H:%M:%S"),
-                    "requests_count": len(ip_windows[ip])
-                })
-                # Optional: clear deque to avoid multiple logs of same burst
-                ip_windows[ip].clear()
+                # If enough requests are in the window, log the brute-force attempt
+                if len(ip_windows[ip]) >= MIN_REQUESTS_IN_WINDOW_BR_ATTACK:
+                    attacks.append({
+                        "source_ip": ip,
+                        "start_time": ip_windows[ip][0].strftime("%Y-%m-%d %H:%M:%S"),
+                        "end_time": ip_windows[ip][-1].strftime("%Y-%m-%d %H:%M:%S"),
+                        "requests_count": len(ip_windows[ip])
+                    })
+                    # Optional: clear deque to avoid multiple logs of same burst
+                    ip_windows[ip].clear()
 
-        # Result
-        for attack in attacks:
-            print(attack)
-            # Attack distribution over time
-            curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
-                         "AND attack_type = 'Brute Force'",
-                         (attack["start_time"][:9],))
-            amount_this_date = curr.fetchone()
-            if amount_this_date:
-                curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
-                             (attack["start_time"][:9], amount_this_date[0] + 1, "Brute Force"))
+            # Result
+            for attack in attacks:
+                print(attack)
+                # Attack distribution over time
+                curr.execute("SELECT amount FROM attack_dis_over_time WHERE date = ? "
+                             "AND attack_type = 'Brute Force'",
+                             (attack["start_time"][:9],))
+                amount_this_date = curr.fetchone()
+                if amount_this_date:
+                    curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
+                                 (attack["start_time"][:9], amount_this_date[0] + 1, "Brute Force"))
+                else:
+                    curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
+                                 (log["start_time"][:9], 1, "Brute Force"))
+
+            more_catches = []
+            for log in connection_logs:
+                print(log["username"])
+                if log["username"] in brute_force_usernames or log["password"] in brute_force_passwords:
+                    if attacks:
+                        for attack in attacks:
+                            if 0 < HelperFunctions.time_difference(attack["start_time"], log["timestamp"]) < HelperFunctions.time_difference(attack["start_time"], log["end_time"]):
+                                pass    # Attack already logged
+                            else:
+                                more_catches.append((log["source_ip"], log["timestamp"]))
+                    else:
+                        more_catches.append((log["source_ip"], log["timestamp"]))
+            num_more_catches = 0
+            if more_catches:
+                num_more_catches += 1
+                for i in range(1, len(more_catches)):
+                    if (HelperFunctions.time_difference(more_catches[i-1][1], more_catches[i-1][1]) <=
+                            MAX_TIME_DIFF_BR_ATTACK):
+                        pass
+                    else:
+                        num_more_catches += 1
+
+            curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
+            num_brute_force = curr.fetchone()
+            if num_brute_force:
+                curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
+                             (num_brute_force[0] + len(attacks)+num_more_catches, 'Brute Force'))
             else:
-                curr.execute("INSERT INTO attack_dis_over_time(date, amount, attack_type) VALUES(?,?,?);",
-                             (log["start_time"][:9], 1, "Brute Force"))
+                curr.execute("INSERT INTO attack_types VALUES(?, ?)",
+                             ('Brute Force', len(attacks)+num_more_catches))
+            print(attacks)
+            print(more_catches)
 
-        more_catches = []
-        for log in connection_logs:
-            print(log["username"])
-            if log["username"] in brute_force_usernames or log["password"] in brute_force_passwords:
-                if attacks:
-                    for attack in attacks:
-                        if 0 < HelperFunctions.time_difference(attack["start_time"], log["timestamp"]) < HelperFunctions.time_difference(attack["start_time"], log["end_time"]):
-                            pass    # Attack already logged
-                        else:
-                            more_catches.append((log["source_ip"], log["timestamp"]))
-                else:
-                    more_catches.append((log["source_ip"], log["timestamp"]))
-        num_more_catches = 0
-        if more_catches:
-            num_more_catches += 1
-            for i in range(1, len(more_catches)):
-                if (HelperFunctions.time_difference(more_catches[i-1][1], more_catches[i-1][1]) <=
-                        MAX_TIME_DIFF_BR_ATTACK):
-                    pass
-                else:
-                    num_more_catches += 1
-
-        curr.execute("SELECT num_attacks FROM attack_types WHERE a_type = 'Brute Force'")
-        num_brute_force = curr.fetchone()
-        if num_brute_force:
-            curr.execute("UPDATE attack_types SET num_attacks = ? WHERE a_type = ?",
-                         (num_brute_force[0] + len(attacks)+num_more_catches, 'Brute Force'))
-        else:
-            curr.execute("INSERT INTO attack_types VALUES(?, ?)",
-                         ('Brute Force', len(attacks)+num_more_catches))
-        print(attacks)
-        print(more_catches)
-
-        conn.commit()
-        curr.close()
-        conn.close()
+            conn.commit()
+            curr.close()
+            conn.close()
+        except Exception as e:
+            print(e)
 
     @staticmethod
     def establish_database():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        # Creating a cursor
-        curr = conn.cursor()
+            # Creating a cursor
+            curr = conn.cursor()
 
-        # Creating the table for interactions over time
-        curr.execute("CREATE TABLE IF NOT EXISTS interaction_over_time(time text PRIMARY KEY, num_interactions int)")
+            # Creating the table for interactions over time
+            curr.execute("CREATE TABLE IF NOT EXISTS interaction_over_time(time text PRIMARY KEY, num_interactions int)")
 
-        # Creating the table for types of errors
-        curr.execute("CREATE TABLE IF NOT EXISTS error_types(type text PRIMARY KEY, amount int)")
+            # Creating the table for types of errors
+            curr.execute("CREATE TABLE IF NOT EXISTS error_types(type text PRIMARY KEY, amount int)")
 
-        # Creating the table for attack types
-        curr.execute("CREATE TABLE IF NOT EXISTS attack_types(a_type text PRIMARY KEY, num_attacks int)")
+            # Creating the table for attack types
+            curr.execute("CREATE TABLE IF NOT EXISTS attack_types(a_type text PRIMARY KEY, num_attacks int)")
 
-        # Creating the table for attack distribution over time
-        curr.execute("CREATE TABLE IF NOT EXISTS attack_dis_over_time(id int PRIMARY KEY, date text, amount int,"
-                     " attack_type text)")
+            # Creating the table for attack distribution over time
+            curr.execute("CREATE TABLE IF NOT EXISTS attack_dis_over_time(id int PRIMARY KEY, date text, amount int,"
+                         " attack_type text)")
 
-        # Committing changes
-        conn.commit()
+            # Committing changes
+            conn.commit()
 
-        # Close cursor
-        curr.close()
+            # Close cursor
+            curr.close()
+        except Exception as e:
+            print(e)
 
     @staticmethod
     def archive_logs():
-        # Archiving - interaction_logs
-        # Extracting the logs from the file
-        interaction_logs = []
-        with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():
-                    log_entry = json.loads(line)
-                    interaction_logs.append(log_entry)
+        try:
+            # Archiving - interaction_logs
+            # Extracting the logs from the file
+            interaction_logs = []
+            with open("logs/interaction_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():
+                        log_entry = json.loads(line)
+                        interaction_logs.append(log_entry)
 
-        # Transferring the data to the Archive
-        file_path = os.path.join(ARCHIVE_DIR, "interaction_logs_archive.json")
+            # Transferring the data to the Archive
+            file_path = os.path.join(ARCHIVE_DIR, "interaction_logs_archive.json")
 
-        with open(file_path, "a", encoding="utf-8") as file:
-            for log in interaction_logs:
-                json.dump(log, file)
-                file.write("\n")  # One JSON object per line
+            with open(file_path, "a", encoding="utf-8") as file:
+                for log in interaction_logs:
+                    json.dump(log, file)
+                    file.write("\n")  # One JSON object per line
 
-        # Clearing the logs file
-        with open('logs/interaction_logs.json', 'w') as f:
-            pass
+            # Clearing the logs file
+            with open('logs/interaction_logs.json', 'w') as f:
+                pass
 
-        # Archiving - connection_logs
-        # Extracting the logs from the file
-        interaction_logs = []
-        with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():
-                    log_entry = json.loads(line)
-                    interaction_logs.append(log_entry)
+            # Archiving - connection_logs
+            # Extracting the logs from the file
+            interaction_logs = []
+            with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():
+                        log_entry = json.loads(line)
+                        interaction_logs.append(log_entry)
 
-        # Transferring the data to the Archive
-        file_path = os.path.join(ARCHIVE_DIR, "connection_logs_archive.json")
+            # Transferring the data to the Archive
+            file_path = os.path.join(ARCHIVE_DIR, "connection_logs_archive.json")
 
-        with open(file_path, "a", encoding="utf-8") as file:
-            for log in interaction_logs:
-                json.dump(log, file)
-                file.write("\n")  # One JSON object per line
+            with open(file_path, "a", encoding="utf-8") as file:
+                for log in interaction_logs:
+                    json.dump(log, file)
+                    file.write("\n")  # One JSON object per line
 
-        # Clearing the logs file
-        with open('logs/connection_logs.json', 'w') as f:
-            pass
+            # Clearing the logs file
+            with open('logs/connection_logs.json', 'w') as f:
+                pass
 
-        # Archiving - error_logs
-        interaction_logs = []
-        with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
-            for line in file:
-                if line.strip():
-                    log_entry = json.loads(line)
-                    interaction_logs.append(log_entry)
+            # Archiving - error_logs
+            interaction_logs = []
+            with open("logs/error_logs.json", 'r', encoding='utf-8') as file:
+                for line in file:
+                    if line.strip():
+                        log_entry = json.loads(line)
+                        interaction_logs.append(log_entry)
 
-        # Transferring the data to the Archive
-        file_path = os.path.join(ARCHIVE_DIR, "error_logs_archive.json")
+            # Transferring the data to the Archive
+            file_path = os.path.join(ARCHIVE_DIR, "error_logs_archive.json")
 
-        with open(file_path, "a", encoding="utf-8") as file:
-            for log in interaction_logs:
-                json.dump(log, file)
-                file.write("\n")  # One JSON object per line
+            with open(file_path, "a", encoding="utf-8") as file:
+                for log in interaction_logs:
+                    json.dump(log, file)
+                    file.write("\n")  # One JSON object per line
 
-        # Clearing the logs file
-        with open('logs/error_logs.json', 'w') as f:
-            pass
+            # Clearing the logs file
+            with open('logs/error_logs.json', 'w') as f:
+                pass
+        except Exception as e:
+            print(e)
 
 
 class GraphsCharts:
@@ -533,170 +551,182 @@ class GraphsCharts:
     @staticmethod
     # Second graph: Error distribution
     def error_types():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        # Query the data
-        query = "SELECT type, amount FROM error_types"
-        df = pd.read_sql_query(query, conn)
+            # Query the data
+            query = "SELECT type, amount FROM error_types"
+            df = pd.read_sql_query(query, conn)
 
-        conn.close()
+            conn.close()
 
-        # Create a Matplotlib figure
-        fig = Figure(figsize=(5, 3), dpi=100)
-        ax = fig.add_subplot(111)
+            # Create a Matplotlib figure
+            fig = Figure(figsize=(5, 3), dpi=100)
+            ax = fig.add_subplot(111)
 
-        colors = ["#213555", "#38506e", "#82a3be", "#bfd6de"]  # lightest to darkest red
+            colors = ["#213555", "#38506e", "#82a3be", "#bfd6de"]  # lightest to darkest red
 
-        # Horizontal bar chart
-        ax.barh(df['type'], df['amount'], color=colors)
-        ax.set_title('Error distribution')
-        ax.set_xlabel('Occurrences')
-        ax.set_ylabel('Error Type')
-        ax.invert_yaxis()
-        ax.grid(True)
-        fig.patch.set_facecolor('#f7f3ee')  # Figure background
-        ax.set_facecolor('#f7f3ee')  # Plot area background
-        fig.tight_layout()
-        return fig
+            # Horizontal bar chart
+            ax.barh(df['type'], df['amount'], color=colors)
+            ax.set_title('Error distribution')
+            ax.set_xlabel('Occurrences')
+            ax.set_ylabel('Error Type')
+            ax.invert_yaxis()
+            ax.grid(True)
+            fig.patch.set_facecolor('#f7f3ee')  # Figure background
+            ax.set_facecolor('#f7f3ee')  # Plot area background
+            fig.tight_layout()
+            return fig
+        except Exception as e:
+            print(e)
 
     @staticmethod
     # Third graph: Attack Types
     def attack_types():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        # Creating a cursor
-        curr = conn.cursor()
+            # Creating a cursor
+            curr = conn.cursor()
 
-        # Fetch the data
-        curr.execute("SELECT a_type, num_attacks FROM attack_types")
-        data = curr.fetchall()
+            # Fetch the data
+            curr.execute("SELECT a_type, num_attacks FROM attack_types")
+            data = curr.fetchall()
 
-        curr.close()
-        conn.close()
+            curr.close()
+            conn.close()
 
-        # Separate the data into labels and sizes
-        labels = [row[0] for row in data]
-        sizes = [row[1] for row in data]
-        colors = ['#3e5879', '#586f82', '#a6c1ca']
+            # Separate the data into labels and sizes
+            labels = [row[0] for row in data]
+            sizes = [row[1] for row in data]
+            colors = ['#3e5879', '#586f82', '#a6c1ca']
 
-        # Create a Matplotlib figure
-        fig = Figure(figsize=(4, 3), dpi=100)
-        ax = fig.add_subplot(111)
+            # Create a Matplotlib figure
+            fig = Figure(figsize=(4, 3), dpi=100)
+            ax = fig.add_subplot(111)
 
-        # Create pie chart
-        wedges, texts, autotexts = ax.pie(
-            sizes,
-            labels=labels,
-            colors=colors,
-            autopct='%1.1f%%',
-            shadow=False,
-            startangle=140
-        )
+            # Create pie chart
+            wedges, texts, autotexts = ax.pie(
+                sizes,
+                labels=labels,
+                colors=colors,
+                autopct='%1.1f%%',
+                shadow=False,
+                startangle=140
+            )
 
-        ax.set_title('Attack Type Distribution')
-        fig.patch.set_facecolor('#f7f3ee')  # Figure background
-        ax.set_facecolor('#f7f3ee')  # Plot area background
-        fig.tight_layout()
+            ax.set_title('Attack Type Distribution')
+            fig.patch.set_facecolor('#f7f3ee')  # Figure background
+            ax.set_facecolor('#f7f3ee')  # Plot area background
+            fig.tight_layout()
 
-        return fig
+            return fig
+        except Exception as e:
+            print(e)
 
     @staticmethod
     # Forth graph: Database Hits
     def database_hitss():
-        global database_hits
+        try:
+            global database_hits
 
-        # Prepare data for bar plot
-        bar_data = []
+            # Prepare data for bar plot
+            bar_data = []
 
-        for table, columns in database_hits.items():
-            for column, count in columns.items():
-                bar_data.append({
-                    "Table": table,
-                    "Column": column,
-                    "Count": count
-                })
+            for table, columns in database_hits.items():
+                for column, count in columns.items():
+                    bar_data.append({
+                        "Table": table,
+                        "Column": column,
+                        "Count": count
+                    })
 
-        df = pd.DataFrame(bar_data)
+            df = pd.DataFrame(bar_data)
 
-        # Define color palette per table
-        palette = {
-            "accounts": "#3e5879",
-            "orders": "#586f82",
-            "payments": "#a6c1ca"
-        }
+            # Define color palette per table
+            palette = {
+                "accounts": "#3e5879",
+                "orders": "#586f82",
+                "payments": "#a6c1ca"
+            }
 
-        # Create a Matplotlib figure
-        fig = Figure(figsize=(9, 4), dpi=100)
-        ax = fig.add_subplot(111)
+            # Create a Matplotlib figure
+            fig = Figure(figsize=(9, 4), dpi=100)
+            ax = fig.add_subplot(111)
 
-        # Assign colors to each bar based on the table name
-        colors = df["Table"].map(palette)
+            # Assign colors to each bar based on the table name
+            colors = df["Table"].map(palette)
 
-        # Plot vertical bar chart
-        ax.bar(df["Column"], df["Count"], color=colors)
+            # Plot vertical bar chart
+            ax.bar(df["Column"], df["Count"], color=colors)
 
-        ax.set_title("Database Columns Targeted")
-        ax.set_xlabel("Column")
-        ax.set_ylabel("Hits")
-        ax.set_ylim(0, df["Count"].max() + 5)
-        ax.tick_params(axis='x', rotation=30)
-        ax.grid(axis='y')
+            ax.set_title("Database Columns Targeted")
+            ax.set_xlabel("Column")
+            ax.set_ylabel("Hits")
+            ax.set_ylim(0, df["Count"].max() + 5)
+            ax.tick_params(axis='x', rotation=30)
+            ax.grid(axis='y')
 
-        fig.patch.set_facecolor('#f7f3ee')  # Figure background
-        ax.set_facecolor('#f7f3ee')  # Plot area background
-        fig.tight_layout()
-        return fig
+            fig.patch.set_facecolor('#f7f3ee')  # Figure background
+            ax.set_facecolor('#f7f3ee')  # Plot area background
+            fig.tight_layout()
+            return fig
+        except Exception as e:
+            print(e)
 
     @staticmethod
     # Fifth graph: Attack Distribution Over Time
     def attack_dis_over_time():
-        # Connecting to the database
-        conn = sqlite3.connect("HoneyStats")
+        try:
+            # Connecting to the database
+            conn = sqlite3.connect("HoneyStats")
 
-        query = """
-        SELECT date, attack_type, amount
-        FROM attack_dis_over_time
-        """
-        df = pd.read_sql_query(query, conn)
+            query = """
+            SELECT date, attack_type, amount
+            FROM attack_dis_over_time
+            """
+            df = pd.read_sql_query(query, conn)
 
-        conn.close()
+            conn.close()
 
-        # Assume your query and df creation code already ran successfully...
-        df['date'] = pd.to_datetime(df['date'])
+            # Assume your query and df creation code already ran successfully...
+            df['date'] = pd.to_datetime(df['date'])
 
-        # Pivot: one column per attack type, indexed by date
-        pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
+            # Pivot: one column per attack type, indexed by date
+            pivot = df.pivot_table(index="date", columns="attack_type", values="amount", fill_value=0)
 
-        # Prepare the figure
-        fig = Figure(figsize=(5, 3), dpi=100)
-        ax = fig.add_subplot(111)
+            # Prepare the figure
+            fig = Figure(figsize=(5, 3), dpi=100)
+            ax = fig.add_subplot(111)
 
-        # Format x-axis for dates
-        ax.xaxis.set_major_locator(mdates.DayLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            # Format x-axis for dates
+            ax.xaxis.set_major_locator(mdates.DayLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
 
-        # Plot stacked area chart
-        ax.stackplot(
-            pivot.index,
-            [pivot[col] for col in pivot.columns],  # multiple y-series
-            labels=pivot.columns,
-            colors=["#38506e", "#82a3be", "#bfd6de"][:len(pivot.columns)],
-            alpha=0.8
-        )
+            # Plot stacked area chart
+            ax.stackplot(
+                pivot.index,
+                [pivot[col] for col in pivot.columns],  # multiple y-series
+                labels=pivot.columns,
+                colors=["#38506e", "#82a3be", "#bfd6de"][:len(pivot.columns)],
+                alpha=0.8
+            )
 
-        # Titles and labels
-        ax.set_title("Attack Distribution Over Time")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Amount")
-        ax.legend(loc="upper left")
-        ax.grid(True)
+            # Titles and labels
+            ax.set_title("Attack Distribution Over Time")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Amount")
+            ax.legend(loc="upper left")
+            ax.grid(True)
 
-        fig.patch.set_facecolor('#f7f3ee')  # Figure background
-        ax.set_facecolor('#f7f3ee')  # Plot area background
-        fig.tight_layout()
-        return fig
+            fig.patch.set_facecolor('#f7f3ee')  # Figure background
+            ax.set_facecolor('#f7f3ee')  # Plot area background
+            fig.tight_layout()
+            return fig
+        except Exception as e:
+            print(e)
 
 
 class HelperFunctions:
