@@ -1,0 +1,711 @@
+import socket
+import threading
+import sqlite3
+import random
+import time
+import json
+from datetime import datetime
+import os
+import traceback
+import socket
+import time
+import random
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Hash import HMAC, SHA256
+from Crypto.Random import get_random_bytes
+import sys
+import json
+import base64
+
+HOST = '127.0.0.1'  # localhost
+PORT = 1729
+
+NUM_DIGITS_LENGTH_FIELD = 10
+RESPONSE_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
+MAX_RESPONSE_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
+
+
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+class ClientDisconnectedError(Exception):
+    """Raised when client disconnects unexpectedly"""
+    pass
+
+
+def receive_message(client_socket, client_aes_key):
+    try:
+        # Step 1: Receive the message length field
+        request_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+        if not request_length_field:  # Client disconnected cleanly
+            raise ConnectionResetError("Client disconnected unexpectedly")
+
+        # Convert to integer to know the size of the incoming request
+        request_length = int(request_length_field)
+
+        # Step 2: Receive the actual encrypted message JSON
+        client_data_json_st = client_socket.recv(request_length).decode()
+        client_data_json = json.loads(client_data_json_st)
+
+        # Decode the components of the encrypted message
+        en_client_request = base64.b64decode(client_data_json['msg'].encode())
+        client_nonce = base64.b64decode(client_data_json['nonce'].encode())
+        client_tag = base64.b64decode(client_data_json['tag'].encode())
+
+        # Step 3: Decrypt the message using AES GCM mode
+        request_cipher = AES.new(client_aes_key, AES.MODE_GCM, nonce=client_nonce)
+        try:
+            client_request = request_cipher.decrypt_and_verify(en_client_request, client_tag)
+        except ValueError:
+            print("The message was modified!")
+            sys.exit(1)
+
+        # Step 4: Simulated latency before processing the decrypted message
+        delay = random.uniform(0.1, 2)
+        time.sleep(delay)
+
+        # Step 5: Return the decrypted message as a string
+        print("Received and decrypted message:", client_request.decode())
+        return client_request.decode()
+
+    except (socket.error, ValueError, ConnectionResetError) as e:
+        print(f"{type(e).__name__}: {e}")
+        raise  # Re-raise the error for clean handling
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        return
+
+
+def send_message(client_socket, response, server_aes_key):
+    try:
+        # Encrypt the server's response using AES
+        # Creating the AES cipher with a new nonce (IV)
+        server_cipher = AES.new(server_aes_key, AES.MODE_GCM)
+
+        # Extracting the nonce
+        server_enc_nonce = server_cipher.nonce
+
+        # Encrypting the message and generating the tag
+        server_ciphertext, server_tag = server_cipher.encrypt_and_digest(response.encode())
+
+        # Prepare the encrypted data to be sent
+        server_data_dict = {
+            "msg": base64.b64encode(server_ciphertext).decode(),
+            "nonce": base64.b64encode(server_enc_nonce).decode(),
+            "tag": base64.b64encode(server_tag).decode()
+        }
+
+        # Convert the dictionary to JSON
+        server_data_json = json.dumps(server_data_dict)
+
+        # Step 1: Ensure the response doesn't exceed the max allowed size
+        response_length = len(server_data_json)
+        if response_length > MAX_RESPONSE_MESSAGE_LENGTH:
+            print("Response too large to send.")
+            return  # Break or handle appropriately
+
+        # Step 2: Create the response length field and the full message
+        response_length_field = RESPONSE_LENGTH_FIELD_FORMAT % response_length
+        response_data = response_length_field + server_data_json
+
+        # Step 3: Send the encrypted response to the client
+        client_socket.send(response_data.encode())
+        # print("Encrypted message sent successfully!")
+
+        # Simulated Latency - to mimic real-life traffic and delay
+        delay = random.uniform(0.1, 2)  # Simulated delay between 100ms and 2 seconds
+        time.sleep(delay)
+
+    except (socket.error, ValueError) as e:
+        print(f"{type(e).__name__}: {e}")
+        return
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        return
+
+
+def write_log(file_name, log_entry):
+    file_path = os.path.join(LOG_DIR, file_name)
+
+    with open(file_path, "a", encoding="utf-8") as file:
+        json.dump(log_entry, file)
+        file.write("\n")  # One JSON object per line
+
+
+# Function to get timestamp
+def get_timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# The different types of logs
+def log_connection(source_ip, username, password,  login_status):
+    entry = {
+        "timestamp": get_timestamp(),
+        "source_ip": source_ip,
+        "username": username,
+        "password": password,
+        "login_status": login_status
+    }
+    # login_status: SUCCESSFUL or FAILED or SIGNUP
+
+    write_log("connection_logs.json", entry)
+
+
+# Can send the error to the client for extra vulnerability
+def log_error(error_message, error_type, query, source_ip, traceback_str):
+    print("logging the error")
+    entry = {
+        "timestamp": get_timestamp(),
+        "error_type": error_type,
+        "error_message": error_message,
+        "query": query,
+        "source_ip": source_ip,
+        "traceback": traceback_str
+    }
+    write_log("error_logs.json", entry)
+
+
+def log_interaction(source_ip, payload, resource_accessed, query):
+    entry = {
+        "timestamp": get_timestamp(),
+        "source_ip": source_ip,
+        "payload": payload,
+        "resource_accessed": resource_accessed,
+        "query": query,
+    }
+    write_log("interaction_logs.json", entry)
+
+
+def client_view_client_profile(client_socket, client_username, addr, client_aes_key, server_aes_key):
+    try:
+        # Connecting to the database
+        with sqlite3.connect("Small Business") as conn:
+            curr = conn.cursor()
+            # To note which query was executed in case of an error (for more accurate logging)
+            database_updates = 0
+
+            # Client ID
+            client_id_curr = curr.execute(f"SELECT id FROM accounts WHERE username = '{client_username}'")
+            database_updates += 1
+            client_id = curr.fetchone()
+
+            #  Logging interaction with the database
+            log_interaction(addr[0], (client_username,), ("accounts", ["id", "username"]),
+                            f"SELECT id FROM accounts WHERE username = '{client_username}'")
+            send_message(client_socket, client_id[0], server_aes_key)
+            # Client username
+            send_message(client_socket, client_username, server_aes_key)
+            # Client password
+            client_password_curr = curr.execute(f"SELECT password FROM accounts WHERE username = '{client_username}'")
+            database_updates += 1
+            client_password = curr.fetchone()
+
+            #  Logging interaction with the database
+            log_interaction(addr[0], (client_username,), ("accounts", ["password", "username"]),
+                            f"SELECT password FROM accounts WHERE username = '{client_username}'")
+            send_message(client_socket, client_password[0], server_aes_key)
+            # Client full name
+            client_full_name_curr = curr.execute(f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
+            database_updates += 1
+            client_full_name = curr.fetchone()
+
+            #  Logging interaction with the database
+            log_interaction(addr[0], (client_username,), ("accounts", ["full_name", "username"]),
+                            f"SELECT full_name FROM accounts WHERE username = '{client_username}'")
+            send_message(client_socket, client_full_name[0], server_aes_key)
+            handle_client(client_socket, client_username, addr, client_aes_key, server_aes_key)
+    except (socket.error, ValueError, sqlite3.error) as e:
+        print(f"{type(e).__name__}: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+        # Logging the error
+        if database_updates == 1:
+            log_error(str(e), type(e).__name__, f"SELECT id FROM accounts WHERE username = '{client_username}'"
+                      , addr[0], traceback.format_exc())
+        elif database_updates == 2:
+            log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username = "
+                                                f"'{client_username}'", addr[0], traceback.format_exc())
+        elif database_updates == 3:
+            log_error(str(e), type(e).__name__, f"SELECT full_name FROM accounts WHERE username = "
+                                                f"'{client_username}'", addr[0], traceback.format_exc())
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        # Logging the error
+        if database_updates == 1:
+            log_error(str(e), type(e).__name__, "Unexpected Error", f"SELECT id FROM accounts WHERE"
+                                                                    f" username = '{client_username}'", addr[0],
+                      traceback.format_exc())
+        elif database_updates == 2:
+            log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username = "
+                                                f"'{client_username}'", addr[0], traceback.format_exc())
+        elif database_updates == 3:
+            log_error(str(e), type(e).__name__, f"SELECT full_name FROM accounts WHERE username = "
+                                                f"'{client_username}'", addr[0], traceback.format_exc())
+        return
+
+
+def client_place_order(client_socket, client_username, addr, client_aes_key, server_aes_key):
+    try:
+        # To note which query was executed in case of an error (for more accurate logging)
+        database_updates = [0, 0, 0, 0, 0, 0]
+
+        # Connecting to the database
+        with sqlite3.connect("Small Business") as conn:
+            # Creating a cursor
+            curr = conn.cursor()
+
+            # Receive order from client
+            # Order details
+            order_details = receive_message(client_socket, client_aes_key)
+
+            # Amount
+            payment_amount = receive_message(client_socket, client_aes_key)
+
+            # Name
+            order_client_name = receive_message(client_socket, client_aes_key)
+
+            # Address
+            order_address = receive_message(client_socket, client_aes_key)
+
+            # Payment Information
+            # Card number
+            payment_card = receive_message(client_socket, client_aes_key)
+
+            # Expiry date
+            payment_card_exdate = receive_message(client_socket, client_aes_key)
+
+            # CVV
+            payment_card_cvv = receive_message(client_socket, client_aes_key)
+
+            # Randomize SUCCESSFUL or FAILED payment
+            payment_status_random = random.randint(0, 2)
+            quarry = ""
+            if payment_status_random == 0:
+                # Insert data into the orders and payments tables in the database
+                # Execute a parameterized query to fetch the password
+                # No input validation, vulnerable to SQL Injection
+                curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
+                             f"'{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
+
+                database_updates[0] = 1
+
+                #  Logging interaction with the database
+                log_interaction(addr[0], (order_client_name, order_address, order_details),
+                                ("orders", ["customer_name", "address", "order_details"]),
+                                f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                                f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'FAILED');")
+
+                order_id = curr.lastrowid
+                curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES "
+                             f"('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                             f"'{payment_amount}','FAILED');")
+
+                database_updates[1] = 1
+
+                #  Logging interaction with the database
+                log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv, payment_amount),
+                                ("payments", ["order_id", "card_number", "expiry_date", "cvv", "amount"]),
+                                f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
+                                f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                                f"'{payment_amount}','FAILED');")
+
+                send_message(client_socket, "payment failed", server_aes_key)
+            else:
+                # Insert data into the orders and payments tables in the database
+                # Execute a parameterized query to fetch the password
+                # No input validation, vulnerable to SQL Injection
+                curr.execute(f"INSERT INTO orders (customer_name, address, order_details, payment_status) VALUES ("
+                             f"'{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
+
+                #  Logging interaction with the database
+                log_interaction(addr[0], (order_client_name, order_address, order_details),
+                                ("orders", ["customer_name", "address", "order_details"]),
+                                f"INSERT INTO orders (customer_name, address, order_details, payment_status)"
+                                f" VALUES ('{order_client_name}', '{order_address}', '{order_details}', 'SUCCESSFUL');")
+
+                database_updates[2] = 1
+
+                order_id = curr.lastrowid
+                curr.execute(f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status) VALUES ("
+                             f"'{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                             f"'{payment_amount}', 'SUCCESSFUL');")
+
+                #  Logging interaction with the database
+                log_interaction(addr[0], (payment_card, payment_card_exdate, payment_card_cvv),
+                                ("payments", ["order_id", "card_number", "expiry_date", "cvv", "amount"]),
+                                f"INSERT INTO payments (order_id, card_number, expiry_date, cvv, amount, status)"
+                                f" VALUES ('{order_id}','{payment_card}','{payment_card_exdate}','{payment_card_cvv}',"
+                                f"'{payment_amount}','SUCCESSFUL');")
+                database_updates[3] = 1
+
+                send_message(client_socket, "Order placed! Payment complete!", server_aes_key)
+
+            # Print the orders table
+            curr.execute("SELECT * FROM orders")
+            database_updates[4] = 1
+            orders = curr.fetchall()
+            for order in orders:
+                print(order)
+
+            # Print the payments table
+            curr.execute("SELECT * FROM payments")
+            database_updates[5] = 1
+            payments = curr.fetchall()
+            for payment in payments:
+                print(payment)
+
+            handle_client(client_socket, client_username, addr, client_aes_key, server_aes_key)
+    except (sqlite3.Error, ValueError, socket.error) as e:
+        print(f"{type(e).__name__}: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+        # Logging the error
+        if database_updates == [1, 0, 0, 0, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO orders (customer_name, address, order_details,"
+                                          f" payment_status) VALUES ('{order_client_name}', '{order_address}',"
+                                          f" '{order_details}', 'FAILED');", addr[0], traceback.format_exc())
+        elif database_updates == [1, 1, 0, 0, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                          f" cvv, amount, status) VALUES ('{order_id}','{payment_card}',"
+                                          f"'{payment_card_exdate}','{payment_card_cvv}','{payment_amount}',"
+                                          f"'FAILED');", addr[0], traceback.format_exc())
+        elif database_updates == [0, 0, 1, 0, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO orders (customer_name, address, order_details,"
+                                          f" payment_status) VALUES ('{order_client_name}', '{order_address}',"
+                                          f" '{order_details}', 'SUCCESSFUL');", addr[0], traceback.format_exc())
+        elif database_updates == [0, 0, 1, 1, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                          f" cvv, amount, status) VALUES ('{order_id}','{payment_card}',"
+                                          f"'{payment_card_exdate}','{payment_card_cvv}','{payment_amount}',"
+                                          f"'SUCCESSFUL');", addr[0], traceback.format_exc())
+        elif database_updates[4] == 1:
+            log_error(str(e), type(e).__name__, "SELECT * FROM orders", addr[0], traceback.format_exc())
+        elif database_updates[5] == 1:
+            log_error(str(e), type(e).__name__, "SELECT * FROM payments", addr[0], traceback.format_exc())
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        # Logging the error
+        if database_updates == [1, 0, 0, 0, 0, 0]:
+            log_error(str(e), type(e).__name__,  f"INSERT INTO orders (customer_name, address, order_details,"
+                                             f" payment_status) VALUES ('{order_client_name}', '{order_address}',"
+                                             f" '{order_details}', 'FAILED');", addr[0], traceback.format_exc())
+        elif database_updates == [1, 1, 0, 0, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                             f" cvv, amount, status) VALUES ('{order_id}','{payment_card}',"
+                                             f"'{payment_card_exdate}','{payment_card_cvv}','{payment_amount}',"
+                                             f"'FAILED');", addr[0], traceback.format_exc())
+        elif database_updates == [0, 0, 1, 0, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO orders (customer_name, address, order_details,"
+                                             f" payment_status) VALUES ('{order_client_name}', '{order_address}',"
+                                             f" '{order_details}', 'SUCCESSFUL');", addr[0], traceback.format_exc())
+        elif database_updates == [0, 0, 1, 1, 0, 0]:
+            log_error(str(e), type(e).__name__, f"INSERT INTO payments (order_id, card_number, expiry_date,"
+                                             f" cvv, amount, status) VALUES ('{order_id}','{payment_card}',"
+                                             f"'{payment_card_exdate}','{payment_card_cvv}','{payment_amount}',"
+                                             f"'SUCCESSFUL');", addr[0], traceback.format_exc())
+        elif database_updates[4] == 1:
+            log_error(str(e), type(e).__name__, "SELECT * FROM orders", addr[0], traceback.format_exc())
+        elif database_updates[5] == 1:
+            log_error(str(e), type(e).__name__, "SELECT * FROM payments", addr[0], traceback.format_exc())
+        return None
+        return
+
+
+def handle_client(client_socket, client_username, addr, client_aes_key, server_aes_key):
+    try:
+        # Connecting to the database
+        with sqlite3.connect("Small Business") as conn:
+            # Creating a cursor
+            curr = conn.cursor()
+
+            curr.execute(f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+
+            # Logging the interaction
+            log_interaction(addr[0], (client_username,), ("accounts", ["security_level", "username"]),
+                            f"SELECT security_level FROM accounts WHERE username = '{client_username}'")
+
+            client_sec_level = curr.fetchone()
+            print(client_username)
+            print(client_sec_level)
+            if client_sec_level:
+                print(client_sec_level[0])
+
+                # User logged in, can execute several actions, now chose one:
+                user_action = receive_message(client_socket, client_aes_key)
+                if user_action == "order":
+                    print("order")
+                    client_place_order(client_socket, client_username, addr, client_aes_key, server_aes_key)
+                elif user_action == "profile":
+                    print("profile")
+                    client_view_client_profile(client_socket, client_username, addr, client_aes_key, server_aes_key)
+                elif user_action == "exit":
+                    pass
+    except (sqlite3.Error, ValueError, socket.error) as e:
+        print(f"{type(e).__name__}: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+
+        # Logging the error
+        log_error(str(e), type(e).__name__, f"SELECT security_level FROM accounts WHERE username ="
+                                      f" '{client_username}'", addr[0], traceback.format_exc())
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        try:
+            client_socket.close()
+        except OSError:
+            pass
+        # Logging Error
+        log_error(str(e), type(e).__name__, f"SELECT security_level FROM accounts WHERE username ="
+                                         f" '{client_username}'", addr[0], traceback.format_exc())
+        return
+
+
+def login(client_socket, addr, client_aes_key, server_aes_key):
+    while True:
+        try:
+            client_username = receive_message(client_socket, client_aes_key)
+            client_password = receive_message(client_socket, client_aes_key)
+
+            with sqlite3.connect("Small Business") as conn:
+                curr = conn.cursor()
+
+                query = (f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND password ="
+                         f" '{client_password}'")
+                curr.execute(query)
+                result = curr.fetchone()
+
+                # Logging the interaction
+                log_interaction(addr[0], (client_username, client_password), ("accounts",
+                                                                              ["security_level", "username",
+                                                                               "password"]),
+                                f"SELECT security_level FROM accounts WHERE username = '{client_username}' AND"
+                                f" password = '{client_password}'")
+
+                if result:
+                    send_message(client_socket, "Login Successful", server_aes_key)
+                    log_connection(addr[0], client_username, client_password, "SUCCESSFUL")
+                    return client_username  # success → exit loop
+                else:
+                    send_message(client_socket, "Login Failed", server_aes_key)
+                    log_connection(addr[0], client_username, client_password, "FAILED")
+        except (sqlite3.Error, ValueError, socket.error) as e:
+            print(f"{type(e).__name__}: {e}")
+            # # Information leakage - revealing which part of a login attempt failed
+            # send_message(client_socket, f"Database error: {e}")
+
+            # Logging the error
+            log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username ="
+                      f" '{client_username}'", addr[0], traceback.format_exc())
+            return
+        except KeyboardInterrupt:
+            print("Keyboard interrupt - stopping")
+            return None
+        except Exception as e:
+            print(f"Unexpected Error: {type(e).__name__}: {e}")
+            # Logging the error
+            log_error(str(e), type(e).__name__, f"SELECT password FROM accounts WHERE username ="
+                      f" '{client_username}'", addr[0], traceback.format_exc())
+            return
+
+
+def sign_up(client_socket, addr, client_aes_key, server_aes_key):
+    try:
+        while True:
+            # To note which query was executed in case of an error (for more accurate logging)
+            database_updates = 0
+
+            # Connecting to the database
+            with sqlite3.connect("Small Business") as conn:
+                # Creating a cursor
+                curr = conn.cursor()
+
+                # Receive new user data
+                # ID
+                new_user_id = receive_message(client_socket, client_aes_key)
+
+                # Full name
+                new_user_full_name = receive_message(client_socket, client_aes_key)
+
+                # Username
+                new_user_username = receive_message(client_socket, client_aes_key)
+
+                # Password
+                new_user_password = receive_message(client_socket, client_aes_key)
+
+                # Execute a parameterized query to fetch the password
+                # No input validation, vulnerable to SQL Injection
+                # Checking if the username already exists
+                curr.execute(f"SELECT password FROM accounts WHERE username = '{new_user_username}'")
+                database_username = curr.fetchone()
+                if database_username:
+                    send_message(client_socket, "Username already exists", server_aes_key)
+                    continue
+
+                query = (f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}', '{new_user_password}',"
+                         f" '{new_user_full_name}', 2);")
+                curr.execute(query)
+                database_updates += 1
+
+                # Logging the interaction
+                log_interaction(addr[0], (new_user_id, new_user_username, new_user_password, new_user_full_name),
+                                ("accounts", ["username", "password", "full_name"]),
+                                f"INSERT INTO accounts VALUES('{new_user_id}', '{new_user_username}',"
+                                f" '{new_user_password}', '{new_user_full_name}', 2);")
+
+                # Committing changes
+                conn.commit()
+
+                print("Successful user sign up!")
+
+                # Send confirmation message
+                send_message(client_socket, "Sign Up successful", server_aes_key)
+
+                # Logging the new connection
+                log_connection(addr[0], new_user_username, new_user_password, "SIGNUP")
+                return new_user_username
+            return None
+    except (sqlite3.Error, ValueError, socket.error) as e:
+        print(f"{type(e).__name__}: {e}")
+        # # Information leakage - revealing which part of a login attempt failed
+        # send_message(client_socket, f"Database error: {e}")
+
+        # Logging the error
+        if database_updates == 1:
+            log_error(str(e), type(e).__name__, f"INSERT INTO accounts VALUES('{new_user_id}', "
+                                          f"'{new_user_full_name}', '{new_user_username}', '{new_user_full_name}'"
+                                          f", 2);", addr[0], traceback.format_exc())
+        elif database_updates == 2:
+            log_error(str(e), type(e).__name__, "SELECT * FROM accounts", addr[0], traceback.format_exc())
+        return None
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+        return None
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        # Logging the error
+        if database_updates == 1:
+            log_error(str(e), type(e).__name__, f"INSERT INTO accounts VALUES('{new_user_id}', "
+                                             f"'{new_user_full_name}', '{new_user_username}', '{new_user_full_name}'"
+                                             f", 2);", addr[0], traceback.format_exc())
+        elif database_updates == 2:
+            log_error(str(e), type(e).__name__, "SELECT * FROM accounts", addr[0], traceback.format_exc())
+        return
+
+
+def client_entrance(client_socket, addr, client_aes_key, server_aes_key):
+    try:
+        # Receive answer
+        login_or_signup = receive_message(client_socket, client_aes_key)
+
+        if login_or_signup == "login":
+            client_username = login(client_socket, addr, client_aes_key, server_aes_key)
+        elif login_or_signup == "sign up":
+            client_username = sign_up(client_socket, addr, client_aes_key, server_aes_key)
+
+        print(f"Client username : {client_username}")
+        if client_username:
+            handle_client(client_socket, client_username, addr, client_aes_key, server_aes_key)
+        else:
+            client_entrance(client_socket, addr, client_aes_key, server_aes_key)
+
+    except (socket.error, ValueError) as e:
+        print(f"{type(e).__name__}: {e}")
+
+        # Logging the error
+        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
+        return None
+
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        # Logging the error
+        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
+        return
+
+
+def main():
+    try:
+        # Setting up the server
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((HOST, PORT))
+        server_socket.listen(5)
+        print(f"Server listening on {HOST}:{PORT}")
+
+        # Accepting clients
+        while True:
+            print("hi")
+            client_socket, addr = server_socket.accept()
+            print(f"Connection from {addr}")
+
+            # Generating  an RSA key pair (public & public key)
+            server_key = RSA.generate(1024)
+            server_private_key = server_key.export_key()
+            server_public_key = server_key.publickey().export_key()
+
+            # Receive the client's public key
+            client_public_key = client_socket.recv(1024).decode()
+
+            # Sending the server's public key
+            client_socket.send(server_public_key)
+
+            # Generating AES key to encrypt traffic from the server to the client
+            server_aes_key = get_random_bytes(16)
+
+            # Encrypting the server's AES key using the client's public key (RSA)
+            server_cipher_rsa = PKCS1_OAEP.new(RSA.import_key(client_public_key))
+            enc_server_key = server_cipher_rsa.encrypt(server_aes_key)
+
+            # Sending the server's encrypted AES key
+            client_socket.send(enc_server_key)
+
+            # Receiving the client's encrypted AES key
+            en_client_aes_key = client_socket.recv(1024)
+
+            # Decrypting the client's AES key using the server's private key (RSA)
+            client_aes_key_rsa_cipher = PKCS1_OAEP.new(RSA.import_key(server_private_key))
+            client_aes_key = client_aes_key_rsa_cipher.decrypt(en_client_aes_key)
+
+            client_thread = threading.Thread(target=client_entrance, args=(client_socket, addr, client_aes_key,
+                                                                           server_aes_key), daemon=True)
+            client_thread.start()
+    except (socket.error, ValueError) as e:
+        print(f"{type(e).__name__}: {e}")
+        try:
+            client_socket.close()
+        except OSError:
+            pass
+
+        # Logging the error
+        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        try:
+            client_socket.close()
+        except OSError:
+            pass
+        # Logging the error
+        log_error(str(e), type(e).__name__, "NO QUERY", addr[0], traceback.format_exc())
+    finally:
+        server_socket.close()
+
+
+if __name__ == "__main__":
+    main()
