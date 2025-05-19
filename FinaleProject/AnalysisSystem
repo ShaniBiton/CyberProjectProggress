@@ -57,22 +57,59 @@ class HoneypotApp(tk.Tk):
     # Welcome Screen
     def show_welcome_screen(self):
         self.clear_container()
-        label = ttk.Label(self.container, text="Welcome to the Honeypot Project", font=("Arial", 42))
-        label.pack(pady=60)
 
-        start_btn = ttk.Button(self.container, text="Enter Dashboard", command=self.show_dashboard)
-        start_btn.pack(pady=20)
+        # Create a style object
+        style = ttk.Style()
+        style.theme_use("default")
+
+        # Style for a custom Button
+        style.configure("Custom.TButton",
+                        background="#586f82",
+                        foreground="#f7f3ee",
+                        font=("Arial", 20),
+                        padding=10)
+
+        style.configure("Title.TLabel",
+                        background="#f7f3ee",
+                        foreground="#586f82",
+                        font=("Arial", 60))
+
+        # Configure the custom style
+        style.configure("Custom.TFrame", background="#f7f3ee")
+
+        # Make the container expandable and center the frame
+        for i in range(3):
+            self.container.grid_rowconfigure(i, weight=1)
+            self.container.grid_columnconfigure(i, weight=1)
+
+        center_frame = ttk.Frame(self.container, style="Custom.TFrame")
+        center_frame.grid(row=1, column=1)
+
+        label = ttk.Label(center_frame, text="Database Honeypot", style="Title.TLabel")
+        label.pack(pady=(10, 30))
+
+        start_btn = ttk.Button(center_frame, text="Enter Dashboard", command=self.show_dashboard,
+                               style="Custom.TButton")
+        start_btn.pack(pady=(10, 40))
 
     # Dashboard
     def show_dashboard(self):
         try:
             self.clear_container()
+            # Create a style object
+            style = ttk.Style()
+            style.theme_use("default")
+
+            # Style for a custom Label
+            style.configure("Custom.TLabel",
+                            background="#fef3c7",
+                            foreground="black",
+                            font=("Arial", 44),
+                            padding=5)
 
             # Title and stats
-            ttk.Label(self.container, text="Honeypot Dashboard", font=("Arial", 44)).grid(row=0, column=0, columnspan=3,
+            ttk.Label(self.container, text="Honeypot Dashboard").grid(row=0, column=0, columnspan=3,
                                                                                             pady=(5, 0))
-            stats = "Successful logins: 120 | Failed logins: 37 | Total interactions: 389"
-            ttk.Label(self.container, text=stats, font=("Arial", 16)).grid(row=1, column=0, columnspan=3, pady=(0, 5))
 
             # Create a frame to hold the top two graphs
             top_frame = tk.Frame(self.container)
@@ -120,6 +157,10 @@ class HoneypotApp(tk.Tk):
             canvas5.get_tk_widget().grid(row=3, column=2, padx=10, pady=0)
         except Exception as e:
             print(e)
+            plt.close('all')
+            self.destroy()
+            exit()
+
 
 
 class Analysis:
@@ -157,6 +198,7 @@ class Analysis:
             conn.close()
         except Exception as e:
             print(e)
+            exit()
 
     @staticmethod
     def error_analysis():
@@ -191,6 +233,7 @@ class Analysis:
             conn.close()
         except Exception as e:
             print(e)
+            exit()
 
     @staticmethod
     def attack_analysis():
@@ -416,6 +459,7 @@ class Analysis:
             conn.close()
         except Exception as e:
             print(e)
+            exit()
 
     @staticmethod
     def establish_database():
@@ -446,6 +490,7 @@ class Analysis:
             curr.close()
         except Exception as e:
             print(e)
+            exit()
 
     @staticmethod
     def archive_logs():
@@ -513,6 +558,7 @@ class Analysis:
                 pass
         except Exception as e:
             print(e)
+            exit()
 
 
 class GraphsCharts:
