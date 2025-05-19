@@ -1,0 +1,25 @@
+{
+    "accounts": {
+        "id": 0,
+        "username": 14,
+        "password": 14,
+        "full_name": 0,
+        "security_level": 14
+    },
+    "orders": {
+        "order_id": 0,
+        "customer_name": 2,
+        "address": 2,
+        "order_details": 2,
+        "payment_status": 0
+    },
+    "payments": {
+        "payment_id": 0,
+        "order_id": 2,
+        "card_number": 2,
+        "expiry_date": 2,
+        "cvv": 2,
+        "amount": 2,
+        "status": 0
+    }
+}
