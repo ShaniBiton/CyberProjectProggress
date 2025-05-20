@@ -40,6 +40,11 @@ curr.execute("INSERT INTO accounts VALUES('123456123','Oracle', 'aaaaa', 'Emily 
              "'2');")
 curr.execute("INSERT INTO accounts VALUES('234523434','guest', '123abc', 'Benn Richard',  "
              "'2');")
+curr.execute("INSERT INTO accounts VALUES('234524567','user', '123', 'Berry Richards',  "
+             "'2');")
+curr.execute("INSERT INTO accounts VALUES('234545678','username', '123123', 'Berry Richards',  "
+             "'2');")
+
 
 # Adding admin users with a higher security level
 curr.execute("INSERT INTO accounts VALUES('176435897', 'admin', 'admin', 'Robert Richerman',  "
