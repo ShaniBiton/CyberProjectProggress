@@ -263,7 +263,7 @@ class Analysis:
                             "onclick=", "onmouseover=", "onfocus=", "onblur=", "onsubmit=", "onkeydown=", "onmousemove=",
                             "onmouseout=", "onkeypress="]
 
-            xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", "on\w+\s*=",
+            xss_rg_patterns = [r"<\s*(script|img|iframe|onerror|onload).*?>", r"<\s*script[^>]*>", r"on\w+\s*=",
                                r"<\s*img[^>]*>",
                                r"<\s*iframe[^>]*>", r"<\s*svg[^>]*onload\s*="]
 
@@ -350,10 +350,9 @@ class Analysis:
 
             # Brute Force
             brute_force_usernames = ["admin", "user", "root", "administrator", "privileged", "hyperuser", "megauser",
-                                     "manager",
+                                     "manager","username",
                                      "guest", "rootuser", "adminuser", "adm", "info", "test", "mysql", "Oracle", "Demo",
                                      "admin123"]
-            brute_force_passwords = ["12345", "123456", "password", "p@ssword", "secret", "letmein", "admin", "user"]
 
             connection_logs = []
             with open("logs/connection_logs.json", 'r', encoding='utf-8') as file:
@@ -406,7 +405,7 @@ class Analysis:
             more_catches = []
             for log in connection_logs:
                 print(log["username"])
-                if log["username"] in brute_force_usernames or log["password"] in brute_force_passwords:
+                if log["username"] in brute_force_usernames:
                     if attacks:
                         for attack in attacks:
                             if 0 < HelperFunctions.time_difference(attack["start_time"], log["timestamp"]) < HelperFunctions.time_difference(attack["start_time"], log["end_time"]):
@@ -579,7 +578,9 @@ class GraphsCharts:
             conn = sqlite3.connect("HoneyStats")
 
             # Query the data
-            query = "SELECT time, num_interactions FROM interaction_over_time"
+            query = ("SELECT time, num_interactions "
+                     "FROM interaction_over_time "
+                     "ORDER BY time ASC;")
             df = pd.read_sql_query(query, conn)
 
             conn.close()
